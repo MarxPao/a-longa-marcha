@@ -5,7 +5,7 @@
 | Fase | Nome | Tamanho | Status | Tag Git |
 | :---: | :--- | :---: | :---: | :---: |
 | **0** | Fundação e spike do terreno | P | **CONCLUÍDA** | `fase-0` |
-| **1** | Dados e persistência | M | Pendente | — |
+| **1** | Dados e persistência | M | **CONCLUÍDA** | `fase-1` |
 | **2A** | Motor I: derivados e finanças | G | Pendente | — |
 | **2B** | Motor II: detectores, P&D, eventos, conquistas e turno | G | Pendente | — |
 | **3** | Store e interface base | G | Pendente | — |
@@ -27,3 +27,19 @@
 4. [x] Executar spike real do `ProceduralTerrains` (clone externo, execução de `npm run build:lib` e `npm run pack:lib`, validação da Rota (a) em branch `spike/terreno-rota-a` e merge para `main`).
 5. [x] Implementar página de teste do terreno por semente (`MapView` em Three.js + `procedural-terrains`, store Zustand, UI com paleta da Seção 4.1 e textos centralizados em `src/textos/pt-BR.ts`).
 6. [x] Criar testes automatizados de unidade e de lint de camadas (incluindo prova automatizada de que importar `react` em `src/engine` quebra `npm run lint:camadas`) e teste E2E Playwright da página do terreno.
+
+
+---
+
+## Plano e Checklist da Fase 1 — Dados e Persistência
+
+1. [x] Criar tipos TypeScript e esquemas Zod completos do Anexo A e Seção 9.2 em `src/domain/entidades.ts` (17 entidades principais + tabelas auxiliares).
+2. [x] Validar que dinheiro é estritamente centavos inteiros (`EsquemaCentavos`), datas em `AAAA-MM-DD` (`EsquemaData`) e instantes em ISO 8601 UTC (`EsquemaInstante`).
+3. [x] Criar suite de testes de domínio `tests/unit/dominio-zod.test.ts` cobrindo fixtures válidas e inválidas para todas as entidades (Tabela 7.1).
+4. [x] Implementar interface `Repository` e funções de persistência segura em `src/repository/types.ts`.
+5. [x] Implementar `RepositorioMemoria` em `src/repository/memoria/RepositorioMemoria.ts`.
+6. [x] Implementar `RepositorioDexie` em `src/repository/dexie/RepositorioDexie.ts` utilizando Dexie v4 com suporte transacional.
+7. [x] Implementar migração automática do esquema v0 -> v1 (`migrarDumpParaVersaoAtual`).
+8. [x] Implementar suite de testes de contrato do repositório `tests/unit/repositorio.test.ts` cobrindo todos os casos da Tabela 7.2 (round-trip de exportar/importar, arquivamento sem exclusão física, importação atômica que rejeita campo inválido sem gravar nada, e migração com fixture v0).
+9. [x] Implementar gerador determinístico `seedDemo(perfil, semente)` em `src/seed/seedDemo.ts` cobrindo os 4 perfis (`pequeno`, `real`, `carga` e `caos`), com teste automatizado garantindo que o perfil carga gera 500 projetos, 5.000 tarefas e 104 semanas em menos de 5 segundos.
+10. [x] Manter lint de camadas (`dependency-cruiser`), `tsc`, `lint`, `vitest` e `playwright` 100% verdes sem violações arquiteturais.

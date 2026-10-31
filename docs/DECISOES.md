@@ -30,3 +30,18 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Contexto:** O Anexo B determina que `ui` pode importar apenas `domain`, `store`, `textos` e `react` (não podendo importar `map` nem `three`), enquanto `map` pode importar apenas `domain`, tipos do `engine` e `three` (não podendo importar `store` nem `react`).
 - **Decisão:** A conexão reativa entre o estado da `store` (Zustand), o container DOM renderizado pela `ui` (`PainelTerrenoFase0`) e a instância imperativa `MapView` (`src/map/MapView.ts`) é feita exclusivamente em `src/app/App.tsx`, que tem permissão arquitetural no Anexo B para importar todas as camadas.
 - **Motivo:** Garantir cumprimento 100% estrito das regras do `dependency-cruiser` (`npm run lint:camadas`) sem exceções.
+
+
+---
+
+## [2026-10-31] DEC-004 — Modelo de Distribuição e Licenciamento (Decisão do Usuário na Seção 9.1)
+- **Contexto:** Na Fase 0 foi solicitada a confirmação sobre o modelo de licenciamento e ambiente alvo. O autor instruiu formalmente: *"ele vai rodar programa instalavel na maquina uso privado"*.
+- **Decisão:** O aplicativo permanece como pacote de uso privado (`"private": true` no `package.json`), com persistência local no navegador/IndexedDB e runtime local (desktop / Chromium standalone). O aviso de licença MIT do `ProceduralTerrains` permanece preservado em `docs/ASSETS.md`.
+- **Motivo:** Alinhamento estrito com a instrução do usuário.
+
+---
+
+## [2026-10-31] DEC-005 — Implementação Dual do Repository e Validação Atômica com Zod
+- **Contexto:** A Fase 1 exige implementar o `Repository` com Dexie (IndexedDB) e em memória, migração de esquema v0->v1 e importação/exportação JSON atômica.
+- **Decisão:** A validação atômica foi centralizada em `src/domain/entidades.ts` via função pura `validarDumpBancoOuFalhar()`. Caso qualquer campo viole os contratos Zod (como ponto flutuante em centavos inteiros), lança `ErroValidacaoImportacao` detalhando o caminho exato do campo sem modificar nada no banco. Ambas as implementações (`RepositorioMemoria` e `RepositorioDexie`) compartilham exatamente a mesma suíte de testes de contrato (Tabela 7.2) e suportam o método `transacao()`.
+- **Motivo:** Garantir integridade máxima dos dados reais, idempotência e portabilidade entre banco de produção e testes em memória.
