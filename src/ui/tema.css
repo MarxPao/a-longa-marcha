@@ -1,0 +1,172 @@
+:root {
+  /* Paleta Oficial — Seção 4.1 do Documento Mestre */
+  --pergaminho: #E8DCC0;
+  --pergaminho-escuro: #CDBB94;
+  --tinta: #1F1B16;
+  --laca: #8E1F1A;
+  --jade: #3E7C68;
+  --ouro: #B8923A;
+  --bronze: #7A5A2B;
+  --nevoa: #9DAAB0;
+
+  --fonte-titulo: 'Noto Serif SC', Georgia, 'Times New Roman', serif;
+  --fonte-dados: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--tinta);
+  color: var(--tinta);
+  font-family: var(--fonte-dados);
+  font-variant-numeric: tabular-nums;
+}
+
+.layout-campanha-fase0 {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.barra-superior-pergaminho {
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(180deg, var(--pergaminho) 0%, var(--pergaminho-escuro) 100%);
+  border-bottom: 3px solid var(--laca);
+  box-shadow: 0 4px 16px rgba(31, 27, 22, 0.45);
+}
+
+.titulo-campanha {
+  font-family: var(--fonte-titulo);
+  font-weight: 700;
+  font-size: 1.35rem;
+  color: var(--tinta);
+  text-shadow: 0 1px 0 var(--ouro);
+  letter-spacing: 0.03em;
+}
+
+.subtitulo-campanha {
+  font-size: 0.8rem;
+  color: var(--bronze);
+  font-weight: 600;
+}
+
+.controles-semente {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.rotulo-semente {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--tinta);
+}
+
+.input-semente {
+  padding: 0.45rem 0.75rem;
+  border: 2px solid var(--bronze);
+  border-radius: 4px;
+  background-color: var(--pergaminho);
+  color: var(--tinta);
+  font-family: var(--fonte-dados);
+  font-size: 0.9rem;
+  min-width: 210px;
+}
+
+.input-semente:focus {
+  outline: 2px solid var(--ouro);
+  border-color: var(--laca);
+}
+
+.botao-campanha {
+  padding: 0.45rem 0.9rem;
+  border: 2px solid var(--bronze);
+  border-radius: 4px;
+  background-color: var(--laca);
+  color: var(--pergaminho);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: filter 120ms ease;
+}
+
+.botao-campanha:hover {
+  filter: brightness(1.1);
+}
+
+.botao-campanha.secundario {
+  background-color: var(--jade);
+  border-color: var(--tinta);
+}
+
+.palco-mapa-3d {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.card-inspecao-terreno {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  z-index: 10;
+  width: 340px;
+  padding: 1rem 1.15rem;
+  background-color: var(--pergaminho);
+  border: 2px solid var(--laca);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(31, 27, 22, 0.5);
+}
+
+.card-inspecao-terreno h2 {
+  font-family: var(--fonte-titulo);
+  font-size: 0.95rem;
+  color: var(--laca);
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--pergaminho-escuro);
+  padding-bottom: 0.35rem;
+}
+
+.lista-metricas-terreno {
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.83rem;
+  margin-bottom: 0.6rem;
+}
+
+.lista-metricas-terreno li {
+  display: flex;
+  justify-content: space-between;
+}
+
+.dica-camera {
+  font-size: 0.76rem;
+  color: var(--bronze);
+  border-top: 1px solid var(--pergaminho-escuro);
+  padding-top: 0.45rem;
+}
+
+.alerta-erro-semente {
+  color: var(--laca);
+  font-size: 0.8rem;
+  font-weight: 600;
+}

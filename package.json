@@ -1,0 +1,43 @@
+{
+  "name": "a-longa-marcha",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Longa Marcha — Mapa estratégico dinâmico 3D de gestão de projetos inspirado em Total War: Three Kingdoms",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "tsc": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "lint:camadas": "depcruise src --config .dependency-cruiser.cjs",
+    "perf": "playwright test tests/e2e/perf.spec.ts"
+  },
+  "dependencies": {
+    "dexie": "^4.0.10",
+    "fflate": "^0.8.3",
+    "procedural-terrains": "2.0.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "0.185.1",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@types/three": "^0.185.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "dependency-cruiser": "^16.9.0",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  }
+}
