@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { Ligacao, Projeto } from '../domain';
 import { MapView } from '../map';
 import { useCampanhaStore, useTerrenoFase0Store } from '../store';
 import { textosPtBr } from '../textos/pt-BR';
@@ -10,7 +11,6 @@ import {
   ModalCriarProjeto,
   ModalFecharTurno,
   PainelProjeto,
-  PlaceholderMapa2D,
   VistaLista,
 } from '../ui';
 import '../ui/tema.css';
@@ -26,7 +26,9 @@ export function App(): React.JSX.Element {
   const metricasTerreno = useTerrenoFase0Store((s) => s.metricas);
   const atualizarMetricasMalha = useTerrenoFase0Store((s) => s.atualizarMetricasMalha);
 
-  // Store Campanha Fase 3
+  // Store Campanha Fase 3 & 4
+  const dump = useCampanhaStore((s) => s.dump);
+  const derivadosPorProjeto = useCampanhaStore((s) => s.derivadosPorProjeto);
   const vistaAtiva = useCampanhaStore((s) => s.vistaAtiva);
   const projetoSelecionadoId = useCampanhaStore((s) => s.projetoSelecionadoId);
   const selecionarProjeto = useCampanhaStore((s) => s.selecionarProjeto);
@@ -38,7 +40,7 @@ export function App(): React.JSX.Element {
 
   const [inputSemente, setInputSemente] = useState(semente);
 
-  // Inicializa mapa Three.js em segundo plano
+  // Inicializa mapa Three.js com suporte completo a cidades procedurais e interação
   useEffect(() => {
     const elemento = containerMapaRef.current;
     if (!elemento) return;
@@ -49,20 +51,67 @@ export function App(): React.JSX.Element {
       aoAtualizarTerreno: (metricas) => {
         atualizarMetricasMalha(metricas);
       },
+      aoSelecionarProjeto: (projetoId) => {
+        selecionarProjeto(projetoId);
+      },
+      aoMoverProjeto: (projetoId, novoX, novoZ) => {
+        void useCampanhaStore.getState().atualizarEntidade<Projeto>('projetos', projetoId, {
+          x: novoX,
+          z: novoZ,
+        });
+      },
+      aoLigarProjetos: (origemId, destinoId) => {
+        const tipos = useCampanhaStore.getState().dump.tiposLigacao;
+        const tipoId = tipos[0]?.id ?? 'tipo-lig-colabora';
+        void useCampanhaStore.getState().criarEntidade<Ligacao>('ligacoes', {
+          origemId,
+          destinoId,
+          tipoId,
+          forca: 1,
+        });
+      },
+      aoFundarProjeto: () => {
+        abrirModal('criarProjeto');
+      },
     });
+
     mapViewRef.current = instancia;
+
+    // Expõe para depuração e testes E2E do Playwright
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __MAP_VIEW__?: MapView }).__MAP_VIEW__ = instancia;
+    }
 
     return () => {
       instancia.destruir();
       mapViewRef.current = null;
+      if (typeof window !== 'undefined') {
+        delete (window as unknown as { __MAP_VIEW__?: MapView }).__MAP_VIEW__;
+      }
     };
-  }, [atualizarMetricasMalha]);
+  }, [atualizarMetricasMalha, selecionarProjeto, abrirModal]);
 
+  // Sincroniza estado da campanha (projetos, setores, ligações, derivados) no mapa 3D
   useEffect(() => {
     if (mapViewRef.current) {
-      void mapViewRef.current.aplicarSemente(semente);
+      mapViewRef.current.sincronizarEstado({
+        projetos: dump.projetos,
+        setores: dump.setores,
+        ligacoes: dump.ligacoes,
+        tiposLigacao: dump.tiposLigacao,
+        derivadosPorProjeto,
+        projetoSelecionadoId,
+        sementeTerreno: semente,
+      });
     }
-  }, [semente]);
+  }, [
+    dump.projetos,
+    dump.setores,
+    dump.ligacoes,
+    derivadosPorProjeto,
+    projetoSelecionadoId,
+    semente,
+  ]);
 
   // Sincroniza input de semente quando ela muda na store
   useEffect(() => {
@@ -128,18 +177,25 @@ export function App(): React.JSX.Element {
       {/* Barra Superior do HUD */}
       <BarraSuperior />
 
-      {/* Conteúdo Central: Mapa 2D ou Vista em Lista */}
-      <main className="conteudo-principal">
-        {vistaAtiva === 'mapa' ? (
-          <PlaceholderMapa2D>
-            <div
-              ref={containerMapaRef}
-              data-testid="container-mapa-3d"
-              style={{ width: '100%', height: '100%' }}
-            />
-          </PlaceholderMapa2D>
-        ) : (
-          <VistaLista />
+      {/* Conteúdo Central: Mapa 3D Estratégico ou Vista em Lista */}
+      <main className="conteudo-principal" style={{ position: 'relative', overflow: 'hidden' }}>
+        {/* Container do Mapa 3D */}
+        <div
+          ref={containerMapaRef}
+          data-testid="container-mapa-3d"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 1,
+            display: vistaAtiva === 'mapa' ? 'block' : 'none',
+          }}
+        />
+
+        {/* Vista Alternativa em Lista (Seção 6.8) */}
+        {vistaAtiva === 'lista' && (
+          <div style={{ position: 'relative', zIndex: 2, height: '100%', width: '100%' }}>
+            <VistaLista />
+          </div>
         )}
 
         {/* Painel Lateral do Projeto */}
@@ -198,44 +254,47 @@ export function App(): React.JSX.Element {
             type="button"
             data-testid="botao-sortear-semente"
             className="botao-campanha"
+            onClick={sortearSemente}
             style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-            onClick={() => {
-              sortearSemente();
-              setInputSemente(useTerrenoFase0Store.getState().semente);
-            }}
           >
-            🎲
+            {textosPtBr.terreno.botaoSortear}
           </button>
         </form>
       </aside>
 
-      {/* Modais Globais da Aplicação */}
-      <BriefInicial />
+      {/* Brief Inicial de Campanha (Seção 6.1) */}
+      {!dump.meta.config.brief.concluido && <BriefInicial />}
+
+      {/* Modais Globais */}
       <CapturaRapida />
       <ModalFecharTurno />
-      <EditorRegistros />
       <ModalCriarProjeto />
+      <EditorRegistros />
 
       {/* Notificação Toast */}
       {notificacao && (
         <div
-          className={`notificacao-toast notificacao-${notificacao.tipo}`}
-          data-testid="notificacao-toast"
+          data-testid="toast-notificacao"
+          style={{
+            position: 'absolute',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background:
+              notificacao.tipo === 'erro'
+                ? 'var(--laca)'
+                : notificacao.tipo === 'sucesso'
+                  ? 'var(--jade)'
+                  : 'var(--tinta)',
+            color: '#fff',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '4px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            zIndex: 100,
+            fontSize: '0.9rem',
+          }}
         >
-          <span>{notificacao.mensagem}</span>
-          <button
-            type="button"
-            onClick={limparNotificacao}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'inherit',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            ✕
-          </button>
+          {notificacao.mensagem}
         </div>
       )}
     </div>

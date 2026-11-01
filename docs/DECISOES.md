@@ -95,3 +95,19 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Decisão:** A `MapView` Three.js monitora a visibilidade de seu container HTML no loop de animação: se o container estiver com `display: none` ou dimensões nulas (ex.: enquanto o usuário opera na Vista Lista), a chamada de renderização é suprimida imediatamente. Além disso, a taxa de quadros é controlada com throttle de ~30 FPS para idle/background.
 - **Evidência do Teste:** A suíte E2E do Playwright (`fase0-terreno.spec.ts` e `fase3-interface.spec.ts`) passou com tempo reduzido de 3.7m (com timeout) para 55.7s no total. O `depcruise` certificou 0 violações de camadas entre `src/store`, `src/ui`, `src/engine` e `src/domain`.
 - **Motivo:** Preservar a CPU do usuário, acelerar testes e garantir uma UI fluida e sem acoplamentos indevidos.
+
+---
+
+## [2026-11-01] DEC-013 — Cidades Procedurais em InstancedMesh, Snap no Heightmap e Cores por Saúde
+- **Contexto:** As Seções 4.3, 5.3 e o Critério de Aceite da Fase 4 exigem modelos de cidades para os 7 níveis de maturidade (Faísca a Legado) e Ruínas, renderizados em `InstancedMesh` (uma única chamada de desenho por nível, totalizando apenas 8 draw calls mesmo com centenas de cidades). As cidades devem ter altura ajustada ao terreno (heightmap snap) e cores determinadas pela pontuação de saúde (Jade para saudável, Âmbar para atenção, Laca para crítico, Pedra para Ruínas).
+- **Decisão:** Implementação de `cidadesGeometria.ts` criando malhas proceduralmente com elementos arquitetônicos chineses (telhados cônicos abaulados, paliçadas, ameias, pagodes de 2 a 4 patamares e ruínas desabadas), unificadas com `BufferGeometryUtils.mergeGeometries`. O módulo `cidadesInstanciadas.ts` gerencia os 8 `THREE.InstancedMesh` alocando dinamicamente instâncias conforme necessário, ajustando posições `(x, y, z)` via `amostrarTerrenoPorSemente()` e atualizando matrizes e cores em lote (`setMatrixAt`, `setColorAt`).
+- **Evidência do Teste:** Teste unitário `tests/unit/mapa-grade-geometria.test.ts` e teste E2E `tests/e2e/fase4-mapa3d.spec.ts` comprovam a geração das 8 geometrias válidas (vértices > 0, normais consistentes, base em y >= 0), colorização e medição de desempenho no perfil carga.
+- **Motivo:** Garantir escalabilidade de centenas de cidades com custo mínimo de GPU e alta fidelidade visual estratégica inspirada em Total War: Three Kingdoms.
+
+---
+
+## [2026-11-01] DEC-014 — Indexação Espacial em Grade O(1) e Gestão Unidirecional de Intenções do Mapa
+- **Contexto:** A Seção 5.2 e 5.3 exigem que a classe `MapView` opere com fluxo unidirecional: ela recebe estado derivado da store e emite estritamente intenções (`aoSelecionarProjeto`, `aoMoverProjeto`, `aoLigarProjetos`, `aoFundarProjeto`), jamais acessando ou alterando o repositório ou store diretamente. A seleção e o raycasting não podem realizar varredura linear O(N) a cada evento de ponteiro.
+- **Decisão:** Criação de `gradeEspacial.ts` (`GradeEspacial<T>`), particionando o mundo em células hash de tamanho 30x30, permitindo consultas `buscarMaisProximo` e `buscarNoRaio` em tempo O(1). O `MapView` mapeia eventos de clique (seleção e foco), arrasto (reposicionamento com validação no store e suporte a `Ctrl+Z`), Shift+arrasto (criação de ligações com prévia elástica) e duplo clique no terreno (fundação de projeto detectando setor por ponto-em-polígono).
+- **Evidência do Teste:** O teste E2E `fase4-mapa3d.spec.ts` comprova o fluxo: clique abre o painel lateral com título do projeto, arrastar persiste a nova posição `(x, z)` no store e no IndexedDB, e a verificação do `dependency-cruiser` comprova 0 violações de camada em `src/map`.
+- **Motivo:** Preservar a integridade da arquitetura desacoplada e garantir resposta de interação instantânea mesmo em campanhas com 500 cidades.

@@ -9,7 +9,7 @@
 | **2A** | Motor I: derivados e finanças | G | **CONCLUÍDA** | `fase-2a` |
 | **2B** | Motor II: detectores, P&D, eventos, conquistas e turno | G | **CONCLUÍDA** | `fase-2b` |
 | **3** | Store e interface base | G | **CONCLUÍDA** | `fase-3` |
-| **4** | Mapa 3D mínimo | G | Pendente | — |
+| **4** | Mapa 3D mínimo | G | **CONCLUÍDA** | `fase-4` |
 | **5** | Painel da cidade completo | G | Pendente | — |
 | **6** | Lentes, minimapa, feed e busca | M | Pendente | — |
 | **7** | Árvore tecnológica e estoque | M | Pendente | — |
@@ -98,3 +98,19 @@
 12. [x] Criar suíte de testes unitários da store `tests/unit/store-comandos.test.ts` (6 testes cobrindo inicialização, comandos Zod, exigência de notas de lições para Ruínas, desfazer Ctrl+Z, fechamento/reversão de turno e importação atômica).
 13. [x] Criar teste E2E Playwright `tests/e2e/fase3-interface.spec.ts` validando o fluxo completo de aceitação: abrir do zero, criar setor, projeto, tarefa, horas, lançamento, fechar turno, exportar e reimportar JSON sem alteração de dados.
 14. [x] Manter suíte 100% verde: 178 testes unitários no Vitest, 2 testes E2E no Playwright, 0 erros no ESLint, 0 violações no `dependency-cruiser` e compilação de produção aprovada pelo Vite.
+
+---
+
+## Plano e Checklist da Fase 4 — Mapa 3D Mínimo
+
+1. [x] Implementar índice espacial em grade O(1) em `src/map/gradeEspacial.ts` (`GradeEspacial<T>`) para seleção, arrasto e raio de tolerância sem varreduras lineares completas.
+2. [x] Implementar geometrias procedurais das cidades para os 7 níveis e Ruínas em `src/map/cidadesGeometria.ts` utilizando primitivas Three.js e `BufferGeometryUtils.mergeGeometries`, respeitando a estética de Three Kingdoms (pagodes, telhados curvados, muralhas com ameias e terraços).
+3. [x] Implementar renderização em lote com `THREE.InstancedMesh` em `src/map/cidadesInstanciadas.ts`, com alocação dinâmica de capacidade, snap na altura do terreno (`amostrarTerrenoPorSemente`), anel indicador de seleção e colorização dinâmica por pontuação de saúde (Jade, Âmbar, Laca, Pedra gasta).
+4. [x] Implementar visualização dos territórios dos setores em `src/map/territorios.ts` (`GerenciadorTerritorios`), subdividindo e adaptando os polígonos ao relevo montanhoso sem recorte indevido, com detecção de ponto-em-polígono para duplo clique.
+5. [x] Implementar visualização de rotas e conexões em `src/map/rotasLigacoes.ts` (`GerenciadorRotas`) através de curvas Bezier 3D com cores por tipo de vínculo (fio dourado para financiamento, laca para dependência, jade para insumo).
+6. [x] Expandir a classe `MapView` em `src/map/MapView.ts` com gestão completa de interações (clique para seleção, arrastar para mover cidade com emissão de intenção, Shift+arrastar para ligar, duplo clique no terreno para fundação de projeto, órbita com botão direito, pan e zoom suave).
+7. [x] Implementar medição real de taxa de quadros e tempo p95 (`medirFps`) para atestar desempenho no perfil carga.
+8. [x] Conectar o `MapView` diretamente ao store Zustand no componente raiz `src/app/App.tsx`, operando estritamente com fluxo unidirecional (leitura de estado derivado e emissão de intenções transformadas em comandos validados por Zod com suporte a `Ctrl+Z`).
+9. [x] Criar suíte de testes unitários para submódulos do mapa em `tests/unit/mapa-grade-geometria.test.ts` (6 testes aprovados cobrindo inserção/busca na grade espacial, integridade das 8 malhas procedurais, ponto em polígono e mapeamento de fases).
+10. [x] Criar teste E2E de aceitação da Fase 4 em `tests/e2e/fase4-mapa3d.spec.ts` comprovando os critérios da Seção 8: cidades renderizadas em InstancedMesh, clique que abre o painel do projeto, persistência de movimento e medição de desempenho no perfil carga.
+11. [x] Manter suíte 100% verde: 184 testes unitários no Vitest (14 arquivos), 3 testes E2E no Playwright, 0 erros no ESLint, 0 violações de camada no `dependency-cruiser` (64 módulos) e compilação de produção do Vite bem-sucedida.
