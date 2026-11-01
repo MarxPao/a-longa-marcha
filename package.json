@@ -1,6 +1,6 @@
 {
   "name": "a-longa-marcha",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "A Longa Marcha — Mapa estratégico dinâmico 3D de gestão de projetos inspirado em Total War: Three Kingdoms",
   "type": "module",
@@ -13,7 +13,7 @@
     "tsc": "tsc --noEmit",
     "lint": "eslint src tests",
     "lint:camadas": "depcruise src --config .dependency-cruiser.cjs",
-    "perf": "playwright test tests/e2e/perf.spec.ts"
+    "perf": "playwright test tests/e2e/fase8-desempenho.spec.ts"
   },
   "dependencies": {
     "dexie": "^4.0.10",

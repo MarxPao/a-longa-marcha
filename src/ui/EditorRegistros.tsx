@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Setor } from '../domain';
 import { useCampanhaStore, useTerrenoFase0Store } from '../store';
 import { textosPtBr } from '../textos/pt-BR';
+import { salvarBackupJsonEmPastaEscolhida } from './backupArquivoSistema';
 
 type AbaEditor = 'setores' | 'estagios' | 'config' | 'dados' | 'terreno';
 
@@ -32,6 +33,7 @@ export function EditorRegistros(): React.JSX.Element | null {
   // Confirmação de limpeza
   const [confirmacaoLimpeza, setConfirmacaoLimpeza] = useState('');
   const [erroImportacao, setErroImportacao] = useState<string | null>(null);
+  const [statusBackupPasta, setStatusBackupPasta] = useState<string | null>(null);
 
   if (modalAberto !== 'editorRegistros') return null;
 
@@ -318,7 +320,26 @@ export function EditorRegistros(): React.JSX.Element | null {
                   Versão do esquema: <strong>v{dump.meta.versaoEsquema}</strong> · Total de entidades:{' '}
                   {dump.projetos.length} projetos, {dump.tarefas.length} tarefas.
                 </p>
-                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+
+                {/* Aviso obrigatório da Seção 5.5 sobre persistência local no navegador */}
+                <div
+                  data-testid="aviso-persistencia-navegador"
+                  style={{
+                    background: '#fff3cd',
+                    color: '#664d03',
+                    border: '1px solid #ffecb5',
+                    padding: '0.6rem 0.8rem',
+                    borderRadius: 4,
+                    fontSize: '0.78rem',
+                    marginBottom: '0.8rem',
+                  }}
+                >
+                  ⚠️ <strong>Aviso Importante (Seção 5.5):</strong> Seus dados ficam gravados localmente no
+                  IndexedDB deste navegador. Limpar os dados do site apaga tudo — exporte uma cópia JSON a cada
+                  fechamento de turno ou salve numa pasta local.
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     className="botao-campanha botao-campanha-ouro"
@@ -326,6 +347,21 @@ export function EditorRegistros(): React.JSX.Element | null {
                     onClick={baixarJson}
                   >
                     💾 Exportar Império (.JSON)
+                  </button>
+
+                  <button
+                    type="button"
+                    className="botao-campanha"
+                    data-testid="botao-salvar-pasta-sistema"
+                    onClick={() => {
+                      void salvarBackupJsonEmPastaEscolhida(exportarJson()).then((res) => {
+                        setStatusBackupPasta(
+                          `Backup "${res.nomeArquivo}" salvo (${res.metodo === 'file_system_access_api' ? 'Pasta escolhida' : 'Download'}).`
+                        );
+                      });
+                    }}
+                  >
+                    📁 Salvar em Pasta Escolhida
                   </button>
 
                   <label className="botao-campanha" style={{ cursor: 'pointer' }}>
@@ -338,6 +374,14 @@ export function EditorRegistros(): React.JSX.Element | null {
                     />
                   </label>
                 </div>
+                {statusBackupPasta && (
+                  <span
+                    data-testid="status-backup-pasta"
+                    style={{ color: '#3E7C68', fontSize: '0.8rem', display: 'block', marginTop: '0.5rem', fontWeight: 600 }}
+                  >
+                    ✓ {statusBackupPasta}
+                  </span>
+                )}
                 {erroImportacao && (
                   <span style={{ color: 'var(--laca)', fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
                     {erroImportacao}

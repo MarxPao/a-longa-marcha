@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useCampanhaStore } from '../store';
 import { textosPtBr } from '../textos/pt-BR';
+import { salvarBackupJsonEmPastaEscolhida } from './backupArquivoSistema';
 import { formatarData, formatarHoras, formatarMoeda } from './formatadores';
 
 export function ModalFecharTurno(): React.JSX.Element | null {
@@ -100,15 +101,26 @@ export function ModalFecharTurno(): React.JSX.Element | null {
                 <p style={{ fontSize: '0.86rem', marginBottom: '0.8rem' }}>
                   Para proteger seu progresso contra limpezas de cache do navegador, salve uma cópia do seu arquivo de campanha.
                 </p>
-                <button
-                  type="button"
-                  className="botao-campanha botao-campanha-ouro"
-                  data-testid="botao-exportar-backup-turno"
-                  onClick={baixarJsonBackup}
-                  style={{ fontSize: '0.92rem', padding: '0.6rem 1.2rem' }}
-                >
-                  💾 {textosPtBr.fechamentoTurno.botaoExportarBackup}
-                </button>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="botao-campanha botao-campanha-ouro"
+                    data-testid="botao-exportar-backup-turno"
+                    onClick={baixarJsonBackup}
+                    style={{ fontSize: '0.92rem', padding: '0.6rem 1.2rem' }}
+                  >
+                    💾 {textosPtBr.fechamentoTurno.botaoExportarBackup}
+                  </button>
+                  <button
+                    type="button"
+                    className="botao-campanha"
+                    data-testid="botao-salvar-pasta-turno"
+                    onClick={() => void salvarBackupJsonEmPastaEscolhida(exportarJson())}
+                    style={{ fontSize: '0.92rem', padding: '0.6rem 1.2rem' }}
+                  >
+                    📁 Salvar em Pasta Escolhida
+                  </button>
+                </div>
               </div>
 
               {resumoRecente && (

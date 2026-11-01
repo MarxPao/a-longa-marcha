@@ -15,7 +15,7 @@
 | **7** | Árvore tecnológica e estoque | M | **CONCLUÍDA** | `fase-7` |
 | **8** | Desempenho | M | **CONCLUÍDA** | `fase-8` |
 | **9** | Atmosfera e acabamento | G | **CONCLUÍDA** | `fase-9` |
-| **10** | Endurecimento e entrega | P | Pendente | — |
+| **10** | Endurecimento e entrega | P | **CONCLUÍDA** | `fase-10` / `v1.0.0` |
 
 ---
 
@@ -187,6 +187,18 @@
 6. [x] Implementar recursos de acessibilidade da Seção 6.8: ajuste dinâmico de tamanho de fonte de `90%` a `130%` (`select-tamanho-fonte` em `BarraSuperior.tsx`) e respeito à preferência por reduzir movimento (`prefers-reduced-motion` + `definirReduzirMovimento` desligando partículas e animações).
 7. [x] Atualizar `docs/ASSETS.md` registrando todos os modelos procedurais, ícones SVG originais, fontes OFL e ausência total de assets da Creative Assembly.
 8. [x] Criar suíte E2E `tests/e2e/fase9-atmosfera-acessibilidade.spec.ts` comprovando atmosfera, formas de saúde, ícones SVG e acessibilidade.
+
+---
+
+## Plano e Checklist da Fase 10 — Endurecimento e Entrega (`v1.0.0`)
+
+1. [x] Validar que o aplicativo inteiro resiste ao perfil `caos` (`seedDemo('caos', ...)`) — nomes de 500 caracteres, emojis, valores zero, datas futuras, projetos órfãos e setores arquivados — sem nenhum erro de console ou página e sem exibir `NaN` ou `undefined` nas 6 abas do Painel da Cidade, na Vista em Lista e na Árvore Tecnológica.
+2. [x] Implementar gravação de backup em pasta escolhida (`src/ui/backupArquivoSistema.ts`) utilizando a File System Access API (`window.showDirectoryPicker` / `window.showSaveFilePicker`) com fallback automático para download de arquivo JSON.
+3. [x] Exibir aviso obrigatório de persistência em navegador (`aviso-persistencia-navegador`) e botão `Salvar em Pasta Escolhida` (`botao-salvar-pasta-sistema`) em **Configurações → Dados** (`src/ui/EditorRegistros.tsx`).
+4. [x] Adicionar botão direto de backup em pasta escolhida (`botao-salvar-pasta-turno`) na tela de confirmação pós-fechamento de turno semanal (`src/ui/ModalFecharTurno.tsx`).
+5. [x] Escrever guia completo de instalação, uso, arquitetura, backup e tabela de atalhos de teclado em `README.md` e elevar `package.json` para a versão `1.0.0`.
+6. [x] Criar e aprovar a suíte E2E `tests/e2e/fase10-endurecimento-caos.spec.ts` (2 cenários aprovados) e concluir o protocolo de entrega com as tags `fase-10` e `v1.0.0`.
+
 
 
 

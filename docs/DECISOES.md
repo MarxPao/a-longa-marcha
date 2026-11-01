@@ -180,6 +180,13 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Evidência do Teste:** Comprovado em `tests/e2e/fase9-atmosfera-acessibilidade.spec.ts`.
 - **Motivo:** Garantir acessibilidade para daltonismo vermelho-verde (jade/laca), baixa visão e sensibilidade a movimento, mantendo 0 assets de terceiros não licenciados.
 
+## [2026-11-01] DEC-025 — Backup em Pasta Escolhida (File System Access API com Fallback), Aviso de Persistência IndexedDB e Perfil Caos (Entrega v1.0.0)
+- **Contexto:** A Fase 10 (Seções 5.5, 6.4, 7.3 e 8) exige que o app resista ao perfil `caos` sem erros nem `NaN`/`undefined`, exiba o aviso obrigatório de persistência do navegador em **Configurações → Dados**, ofereça gravação direta em pasta local via File System Access API (com fallback para download JSON) e lembre o usuário de exportar backup ao concluir cada fechamento de turno semanal.
+- **Decisão:** (1) Implementação de `src/ui/backupArquivoSistema.ts` (`salvarBackupJsonEmPastaEscolhida`), priorizando `window.showDirectoryPicker`, depois `window.showSaveFilePicker` e por fim download automático `.json`; (2) Inclusão do aviso de persistência (`aviso-persistencia-navegador`) e botão `botao-salvar-pasta-sistema` em `src/ui/EditorRegistros.tsx`; (3) Inclusão de `botao-salvar-pasta-turno` na tela pós-confirmação de `src/ui/ModalFecharTurno.tsx`; (4) Documentação completa de uso e atalhos em `README.md` e elevação da versão do pacote para `1.0.0`.
+- **Evidência do Teste:** Comprovado em `tests/e2e/fase10-endurecimento-caos.spec.ts` (2 cenários aprovados: perfil caos percorrendo as 6 abas do Painel da Cidade, Vista em Lista e Árvore Tecnológica com zero erros de console/página e zero `NaN`/`undefined`; e backup via File System Access API + lembrete no fechamento de turno).
+- **Motivo:** Garantir segurança de dados locais para uso privado de longo prazo e concluir todos os critérios da Definição de Pronto (Seção 7.5) para a versão `v1.0.0`.
+
+
 
 
 
