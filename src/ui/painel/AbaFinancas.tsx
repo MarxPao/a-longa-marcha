@@ -2,6 +2,7 @@ import React from 'react';
 import type { Projeto } from '../../domain';
 import { useCampanhaStore } from '../../store';
 import { formatarData, formatarHoras, formatarMoeda } from '../formatadores';
+import { ListaVirtualizada } from '../ListaVirtualizada';
 import { GraficoFinancasSvg, type DadoMesFinanceiro } from './GraficoFinancasSvg';
 
 interface Props {
@@ -215,8 +216,13 @@ export function AbaFinancas({ projeto }: Props): React.JSX.Element {
             Nenhum lançamento registrado neste projeto.
           </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 220, overflowY: 'auto' }}>
-            {lancamentos.map((l) => {
+          <ListaVirtualizada
+            itens={lancamentos}
+            alturaItemPx={44}
+            alturaViewportPx={240}
+            obterChave={(l) => l.id}
+            testId="lista-virtualizada-lancamentos"
+            renderizarItem={(l) => {
               const categoria = dump.categoriasLancamento.find((c) => c.id === l.categoriaId);
               return (
                 <div
@@ -261,8 +267,8 @@ export function AbaFinancas({ projeto }: Props): React.JSX.Element {
                   </span>
                 </div>
               );
-            })}
-          </div>
+            }}
+          />
         )}
       </div>
     </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Tarefa } from '../../domain';
 import { useCampanhaStore } from '../../store';
 import { formatarData } from '../formatadores';
+import { ListaVirtualizada } from '../ListaVirtualizada';
 
 interface Props {
   projetoId: string;
@@ -158,7 +159,14 @@ export function AbaTarefas({ projetoId }: Props): React.JSX.Element {
                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--bronze)' }}>
                   Geral ({tarefasGerais.length})
                 </span>
-                {tarefasGerais.map((t) => renderCardTarefa(t))}
+                <ListaVirtualizada
+                  itens={tarefasGerais}
+                  alturaItemPx={64}
+                  alturaViewportPx={320}
+                  obterChave={(t) => t.id}
+                  renderizarItem={(t) => renderCardTarefa(t)}
+                  testId="lista-virtualizada-tarefas-gerais"
+                />
               </div>
             );
           })()}
@@ -172,7 +180,14 @@ export function AbaTarefas({ projetoId }: Props): React.JSX.Element {
                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--tinta)' }}>
                   📁 {f.nome} ({tarefasDaFrente.length})
                 </span>
-                {tarefasDaFrente.map((t) => renderCardTarefa(t))}
+                <ListaVirtualizada
+                  itens={tarefasDaFrente}
+                  alturaItemPx={64}
+                  alturaViewportPx={280}
+                  obterChave={(t) => t.id}
+                  renderizarItem={(t) => renderCardTarefa(t)}
+                  testId={`lista-virtualizada-frente-${f.id}`}
+                />
               </div>
             );
           })}

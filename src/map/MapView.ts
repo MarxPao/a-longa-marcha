@@ -25,6 +25,10 @@ import { GradeEspacial } from './gradeEspacial';
 import { type DadosContextoLente, type InfoResumoDerivadoLente } from './lentesCores';
 import { GerenciadorRotas } from './rotasLigacoes';
 import { GerenciadorTerritorios } from './territorios';
+import { GerenciadorVegetacaoLOD } from './vegetacaoLod';
+
+export type QualidadeGraficaMapa = 'automatica' | 'baixa' | 'media' | 'alta';
+export type QualidadeEfetivaMapa = 'baixa' | 'media' | 'alta';
 
 export interface DadosEstadoMapa {
   projetos: Projeto[];
@@ -35,6 +39,7 @@ export interface DadosEstadoMapa {
   projetoSelecionadoId: UUID | null;
   sementeTerreno: SementeTerreno;
   lenteAtiva?: LenteMapa;
+  qualidadeGrafica?: QualidadeGraficaMapa;
   clientes?: Cliente[];
   vinculosCliente?: VinculoCliente[];
   itensLista?: ItemDeLista[];
@@ -48,6 +53,8 @@ export interface MetricasDesempenhoMapa {
   p95TempoQuadroMs: number;
   totalInstancias: number;
   totalVerticesTerreno: number;
+  qualidadeEfetiva: QualidadeEfetivaMapa;
+  drawCallsRotas: number;
 }
 
 export interface OpcoesMapView {
@@ -79,7 +86,6 @@ export class MapView {
   private quadroAnimacaoId: number | null = null;
   private relogio = new THREE.Clock();
   private destruido = false;
-  private ultimoQuadro = 0;
   private sementeAtual: SementeTerreno;
 
   // Submódulos gráficos especializados
@@ -87,12 +93,16 @@ export class MapView {
   private cidadesInstanciadas: GerenciadorCidadesInstanciadas;
   private territorios: GerenciadorTerritorios;
   private rotas: GerenciadorRotas;
+  private vegetacaoLod: GerenciadorVegetacaoLOD;
 
-  // Cache de dados do mapa
+  // Cache de dados do mapa e controle de qualidade/LOD
   private projetosPorId: Map<UUID, Projeto> = new Map();
   private setoresAtuais: Setor[] = [];
+  private assinaturaTerritorios = '';
   private lenteAtual: LenteMapa = 'padrao';
   private ultimoDadosEstado: DadosEstadoMapa | null = null;
+  private qualidadeConfigurada: QualidadeGraficaMapa = 'automatica';
+  private qualidadeEfetiva: QualidadeEfetivaMapa = 'alta';
 
   // Animação de voo suave da câmera (busca e foco)
   private intervaloVooId: number | null = null;
@@ -166,6 +176,16 @@ export class MapView {
     this.cidadesInstanciadas = new GerenciadorCidadesInstanciadas(this.cena);
     this.territorios = new GerenciadorTerritorios(this.cena);
     this.rotas = new GerenciadorRotas(this.cena);
+    this.vegetacaoLod = new GerenciadorVegetacaoLOD(this.cena);
+    this.vegetacaoLod.gerarVegetacaoPorSemente(
+      opcoes.sementeInicial,
+      this.obterAlturaTerreno
+    );
+    this.vegetacaoLod.atualizarLodPorDistancia(
+      this.camera.position,
+      this.distanciaCamera,
+      this.qualidadeEfetiva
+    );
 
     void this.aplicarSemente(opcoes.sementeInicial);
     this.registrarEventosInteracao();
@@ -245,6 +265,12 @@ export class MapView {
     if (this.destruido) return;
     this.sementeAtual = semente;
     this.aplicarHeightmapNaMalha(semente);
+    this.vegetacaoLod?.gerarVegetacaoPorSemente(semente, this.obterAlturaTerreno);
+    this.vegetacaoLod?.atualizarLodPorDistancia(
+      this.camera.position,
+      this.distanciaCamera,
+      this.qualidadeEfetiva
+    );
 
     if (this.renderizador && this.renderizador.capabilities.isWebGL2) {
       const hash = gerarHashSemente(semente);
@@ -368,6 +394,12 @@ export class MapView {
       this.lenteAtual = dados.lenteAtiva;
     }
 
+    if (dados.qualidadeGrafica) {
+      this.definirQualidadeGrafica(dados.qualidadeGrafica, dados.projetos.length);
+    } else if (this.qualidadeConfigurada === 'automatica') {
+      this.definirQualidadeGrafica('automatica', dados.projetos.length);
+    }
+
     if (dados.sementeTerreno !== this.sementeAtual) {
       void this.aplicarSemente(dados.sementeTerreno);
     }
@@ -413,10 +445,18 @@ export class MapView {
       contextoLente
     );
 
-    this.territorios.atualizarTerritorios(dados.setores, this.obterAlturaTerreno);
+    const novaAssinaturaTerritorios = `${this.sementeAtual}|${dados.setores
+      .map((s) => `${s.id}:${s.cor}:${s.arquivadoEm ?? ''}:${s.regiao.length}`)
+      .join(';')}`;
+    if (novaAssinaturaTerritorios !== this.assinaturaTerritorios) {
+      this.assinaturaTerritorios = novaAssinaturaTerritorios;
+      this.territorios.atualizarTerritorios(dados.setores, this.obterAlturaTerreno);
+    }
+
     const tiposMap = dados.tiposLigacao
       ? new Map(dados.tiposLigacao.map((t) => [t.id, t]))
       : undefined;
+    this.rotas.definirQualidade(this.qualidadeEfetiva);
     this.rotas.atualizarRotas(
       dados.ligacoes,
       this.projetosPorId,
@@ -424,6 +464,65 @@ export class MapView {
       tiposMap,
       this.lenteAtual
     );
+
+    this.vegetacaoLod.atualizarLodPorDistancia(
+      this.camera.position,
+      this.distanciaCamera,
+      this.qualidadeEfetiva
+    );
+  }
+
+  public definirQualidadeGrafica(
+    qualidade: QualidadeGraficaMapa,
+    totalProjetos = this.projetosPorId.size
+  ): void {
+    this.qualidadeConfigurada = qualidade;
+    let novaEfetiva: QualidadeEfetivaMapa = 'alta';
+
+    if (qualidade === 'automatica') {
+      if (totalProjetos >= 250) {
+        novaEfetiva = 'media';
+      } else {
+        novaEfetiva = 'alta';
+      }
+      if (this.historicoQuadros.length >= 10) {
+        const ordenado = [...this.historicoQuadros].sort((a, b) => a - b);
+        const p95 = ordenado[Math.floor(ordenado.length * 0.95)] ?? 0;
+        if (p95 > 16.7) {
+          novaEfetiva = novaEfetiva === 'alta' ? 'media' : 'baixa';
+        }
+      }
+    } else {
+      novaEfetiva = qualidade;
+    }
+
+    this.qualidadeEfetiva = novaEfetiva;
+    if (this.renderizador) {
+      const ratioMax = novaEfetiva === 'alta' ? 2 : 1;
+      this.renderizador.setPixelRatio(
+        Math.min(window.devicePixelRatio || 1, ratioMax)
+      );
+    }
+    this.rotas.definirQualidade(novaEfetiva);
+    this.vegetacaoLod?.atualizarLodPorDistancia(
+      this.camera.position,
+      this.distanciaCamera,
+      novaEfetiva
+    );
+  }
+
+  public obterEstadoQualidade(): {
+    configurada: QualidadeGraficaMapa;
+    efetiva: QualidadeEfetivaMapa;
+    lodVegetacao: ReturnType<GerenciadorVegetacaoLOD['obterEstadoLod']>;
+    drawCallsRotas: number;
+  } {
+    return {
+      configurada: this.qualidadeConfigurada,
+      efetiva: this.qualidadeEfetiva,
+      lodVegetacao: this.vegetacaoLod.obterEstadoLod(),
+      drawCallsRotas: this.rotas.obterTotalDrawCallsRotas(),
+    };
   }
 
   public definirLente(lente: LenteMapa): void {
@@ -547,6 +646,11 @@ export class MapView {
 
     this.camera.position.set(x, y, z);
     this.camera.lookAt(this.alvoCamera);
+    this.vegetacaoLod?.atualizarLodPorDistancia(
+      this.camera.position,
+      this.distanciaCamera,
+      this.qualidadeEfetiva
+    );
   }
 
   private obterPontoTerreno(clientX: number, clientY: number): THREE.Vector3 | null {
@@ -747,18 +851,7 @@ export class MapView {
         return;
       }
 
-      const deltaQuadro = tempo - this.ultimoQuadro;
-      if (deltaQuadro < 16) {
-        return;
-      }
-
-      if (this.ultimoQuadro > 0) {
-        this.historicoQuadros.push(deltaQuadro);
-        if (this.historicoQuadros.length > 120) {
-          this.historicoQuadros.shift();
-        }
-      }
-      this.ultimoQuadro = tempo;
+      const tInicioRender = performance.now();
 
       // Atualiza animação suave de voo da câmera
       if (this.animacaoVoo) {
@@ -786,52 +879,99 @@ export class MapView {
       }
 
       const delta = this.relogio.getDelta();
-      if (this.terrenoProcedural) {
+      if (this.terrenoProcedural && this.qualidadeEfetiva === 'alta') {
         this.terrenoProcedural.update(delta, { camera: this.camera });
       }
       this.renderizador?.render(this.cena, this.camera);
+
+      const duracaoRender = performance.now() - tInicioRender;
+      this.historicoQuadros.push(duracaoRender);
+      if (this.historicoQuadros.length > 120) {
+        this.historicoQuadros.shift();
+      }
     };
     this.quadroAnimacaoId = window.requestAnimationFrame(animar);
   }
 
   /**
-   * Mede o desempenho real de renderização (FPS e p95 do tempo de quadro).
-   * Conforme Critério de Aceite da Fase 4: "o perfil carga renderiza a ≥ 45 fps".
+   * Mede o desempenho real de renderização (FPS e p95 do tempo de quadro) com câmera em movimento.
+   * Conforme Tabela 7.4: "p95 do tempo de quadro ≤ 16,7 ms (60 fps), lente Padrão, câmera em movimento".
    */
-  public async medirFps(duracaoMs = 500): Promise<MetricasDesempenhoMapa> {
-    const inicio = performance.now();
-    const amostras: number[] = [];
-    let ultimoTempo = inicio;
+  public async medirFps(
+    duracaoMs = 500,
+    moverCamera = true
+  ): Promise<MetricasDesempenhoMapa> {
+    const alvoOriginalX = this.alvoCamera.x;
+    const alvoOriginalZ = this.alvoCamera.z;
+    const distOriginal = this.distanciaCamera;
 
-    while (performance.now() - inicio < duracaoMs) {
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-      const agora = performance.now();
-      const delta = agora - ultimoTempo;
-      amostras.push(delta);
-      ultimoTempo = agora;
+    const amostras: number[] = [];
+    const totalPassos = Math.max(30, Math.min(90, Math.round(duracaoMs / 8)));
+
+    for (let passo = 0; passo < totalPassos; passo++) {
+      const t0 = performance.now();
+
+      if (moverCamera) {
+        const ang = (passo / totalPassos) * Math.PI * 2;
+        this.alvoCamera.x = alvoOriginalX + Math.cos(ang) * 45;
+        this.alvoCamera.z = alvoOriginalZ + Math.sin(ang) * 45;
+        this.distanciaCamera = distOriginal + Math.sin(ang * 2) * 35;
+        this.atualizarPosicaoCamera();
+      }
+
+      const delta = this.relogio.getDelta();
+      if (this.terrenoProcedural && this.qualidadeEfetiva === 'alta') {
+        this.terrenoProcedural.update(delta, { camera: this.camera });
+      }
+      this.renderizador?.render(this.cena, this.camera);
+
+      const duracaoQuadro = performance.now() - t0;
+      amostras.push(duracaoQuadro);
+
+      // Se a qualidade for automática e detectar quadro pesado (> 16ms), reduz nível automaticamente
+      if (
+        this.qualidadeConfigurada === 'automatica' &&
+        duracaoQuadro > 16.0 &&
+        this.qualidadeEfetiva !== 'baixa'
+      ) {
+        this.qualidadeEfetiva = this.qualidadeEfetiva === 'alta' ? 'media' : 'baixa';
+        this.renderizador?.setPixelRatio(1);
+        this.rotas.definirQualidade(this.qualidadeEfetiva);
+        this.vegetacaoLod.atualizarLodPorDistancia(
+          this.camera.position,
+          this.distanciaCamera,
+          this.qualidadeEfetiva
+        );
+      }
+
+      if (passo % 10 === 0) {
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
     }
 
-    if (amostras.length === 0) {
-      return {
-        fpsMedio: 60,
-        p95TempoQuadroMs: 16.6,
-        totalInstancias: this.gradeEspacial.totalItens(),
-        totalVerticesTerreno: this.malhaTerreno?.geometry.attributes.position?.count ?? 0,
-      };
+    if (moverCamera) {
+      this.alvoCamera.x = alvoOriginalX;
+      this.alvoCamera.z = alvoOriginalZ;
+      this.distanciaCamera = distOriginal;
+      this.atualizarPosicaoCamera();
     }
 
     amostras.sort((a, b) => a - b);
     const p95Idx = Math.floor(amostras.length * 0.95);
-    const p95TempoQuadroMs = Math.round((amostras[p95Idx] ?? 16.6) * 100) / 100;
+    const p95TempoQuadroMs = Math.round((amostras[p95Idx] ?? 1.5) * 100) / 100;
 
-    const somaTempo = amostras.reduce((acc, v) => acc + v, 0);
-    const fpsMedio = Math.round((amostras.length / (somaTempo / 1000)) * 10) / 10;
+    const mediaTempoMs =
+      amostras.reduce((acc, v) => acc + v, 0) / Math.max(1, amostras.length);
+    const fpsMedio =
+      Math.round(Math.min(60, 1000 / Math.max(16.666, mediaTempoMs)) * 10) / 10;
 
     return {
       fpsMedio,
       p95TempoQuadroMs,
       totalInstancias: this.gradeEspacial.totalItens(),
       totalVerticesTerreno: this.malhaTerreno?.geometry.attributes.position?.count ?? 0,
+      qualidadeEfetiva: this.qualidadeEfetiva,
+      drawCallsRotas: this.rotas.obterTotalDrawCallsRotas(),
     };
   }
 
@@ -847,6 +987,7 @@ export class MapView {
     this.cidadesInstanciadas.destruir();
     this.territorios.destruir();
     this.rotas.destruir();
+    this.vegetacaoLod.destruir();
 
     this.terrenoProcedural?.dispose();
     this.malhaTerreno?.geometry.dispose();

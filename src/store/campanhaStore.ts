@@ -752,7 +752,7 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
     const comando: ComandoImportarDump = {
       id: crypto.randomUUID() as UUID,
       tipo: 'IMPORTAR_DUMP',
-      dumpAntes: clonarDump(dumpAntes),
+      dumpAntes,
       dumpDepois: dumpValidado,
       descricao: 'Importar dados em JSON',
       timestamp: Date.now(),
@@ -767,6 +767,11 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
       notificacao: { tipo: 'sucesso', mensagem: 'Dados importados com sucesso.' },
     });
 
+    Object.defineProperty(dumpValidado, '__validadoPelaStore', {
+      value: true,
+      enumerable: false,
+      configurable: true,
+    });
     await repositorio.importar(dumpValidado);
   },
 

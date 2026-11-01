@@ -13,7 +13,7 @@
 | **5** | Painel da cidade completo | G | **CONCLUÍDA** | `fase-5` |
 | **6** | Lentes, minimapa, feed e busca | M | **CONCLUÍDA** | `fase-6` |
 | **7** | Árvore tecnológica e estoque | M | **CONCLUÍDA** | `fase-7` |
-| **8** | Desempenho | M | Pendente | — |
+| **8** | Desempenho | M | **CONCLUÍDA** | `fase-8` |
 | **9** | Atmosfera e acabamento | G | Pendente | — |
 | **10** | Endurecimento e entrega | P | Pendente | — |
 
@@ -160,6 +160,21 @@
 4. [x] Implementar `src/ui/TelaEstoqueGlobal.tsx` (botão HUD `📦 Estoque`) com 3 abas: Saldos & Movimentos (registro de entrada, saída e ajuste com bloqueio de saldo negativo), Cadastros de Fornecedores, Armazéns e Itens, e Lista de Materiais (BOM) & Compra Sugerida consolidada por fornecedor.
 5. [x] Criar suíte E2E `tests/e2e/fase7-arvore-estoque.spec.ts` (2 cenários completos exercitando pela interface todos os casos de árvore e estoque da Tabela 7.2).
 6. [x] Manter suíte 100% verde: 190 testes unitários no Vitest (15 arquivos), 14 testes E2E no Playwright (6 arquivos), 0 erros no ESLint, 0 violações no `dependency-cruiser` (80 módulos) e compilação de produção aprovada.
+
+---
+
+## Plano e Checklist da Fase 8 — Desempenho
+
+1. [x] Implementar batching de rotas em `src/map/rotasLigacoes.ts` (`THREE.LineSegments` agrupados por cor/opacidade), reduzindo ~500–750 chamadas de desenho no perfil carga para `≤ 4` draw calls.
+2. [x] Implementar níveis de detalhe (LOD) por distância para árvores e detalhes (`src/map/vegetacaoLod.ts` — `lod0_alta`, `lod1_media`, `lod2_oculto`) e seletor automático de qualidade gráfica (`definirQualidadeGrafica('automatica')`) em `src/map/MapView.ts`.
+3. [x] Implementar cache de assinatura de territórios (`assinaturaTerritorios`) em `src/map/MapView.ts` para evitar retriangulação redundante de polígonos em seleções e trocas de lente.
+4. [x] Implementar Web Worker dedicado para recálculos pesados (`src/workers/recalculo.worker.ts` e `executarRecalculoPesadoWorker` em `src/workers/index.ts`).
+5. [x] Implementar componente de virtualização por janela `src/ui/ListaVirtualizada.tsx` e integrá-lo em `src/ui/painel/AbaTarefas.tsx` e `src/ui/painel/AbaFinancas.tsx`.
+6. [x] Otimizar importação atômica de JSON de 5 MB (`src/store/campanhaStore.ts` e `src/repository/dexie/RepositorioDexie.ts`) e configurar code-splitting (`manualChunks`) em `vite.config.ts` (`450,01 KB` gzip total, meta `≤ 1,5 MB`).
+7. [x] Documentar relatório completo de gargalos e medições em `docs/RELATORIO_DESEMPENHO_FASE8.md`.
+8. [x] Criar suíte de testes unitários de desempenho `tests/unit/desempenho-fase8.test.ts` (6 testes) e suíte E2E `tests/e2e/fase8-desempenho.spec.ts` comprovando todas as 8 metas da Tabela 7.4.
+9. [x] Manter suíte 100% verde: 196 testes unitários no Vitest (16 arquivos), 15 testes E2E no Playwright (7 arquivos), 0 erros no ESLint, 0 violações no `dependency-cruiser` (83 módulos) e compilação de produção aprovada.
+
 
 
 

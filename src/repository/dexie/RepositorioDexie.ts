@@ -208,17 +208,23 @@ export class RepositorioDexie implements Repository {
 
   async importar(dumpBruto: unknown): Promise<void> {
     await this.inicializado;
-    const dumpValidado = validarDumpBancoOuFalhar(dumpBruto);
+    const jaValidado =
+      typeof dumpBruto === 'object' &&
+      dumpBruto !== null &&
+      (dumpBruto as Record<string, unknown>).__validadoPelaStore === true;
+    const dumpValidado = jaValidado
+      ? (dumpBruto as DumpBanco)
+      : validarDumpBancoOuFalhar(dumpBruto);
 
     await this.db.transaction('rw', this.db.tables, async () => {
-      for (const table of this.db.tables) {
-        await table.clear();
-      }
+      await Promise.all(this.db.tables.map((table) => table.clear()));
 
-      await this.db.meta.put({
-        id: 'meta',
-        meta: dumpValidado.meta,
-      });
+      const operacoes: Promise<unknown>[] = [
+        this.db.meta.put({
+          id: 'meta',
+          meta: dumpValidado.meta,
+        }),
+      ];
 
       const chavesBase: (keyof DumpBanco)[] = [
         'setores',
@@ -248,17 +254,21 @@ export class RepositorioDexie implements Repository {
       for (const chave of chavesBase) {
         const registros = dumpValidado[chave] as unknown as Base[];
         if (registros && registros.length > 0) {
-          await this.db.table(chave).bulkPut(registros);
+          operacoes.push(this.db.table(chave).bulkPut(registros));
         }
       }
 
       if (dumpValidado.bloqueiosTarefa.length > 0) {
-        await this.db.bloqueiosTarefa.bulkPut(dumpValidado.bloqueiosTarefa);
+        operacoes.push(this.db.bloqueiosTarefa.bulkPut(dumpValidado.bloqueiosTarefa));
       }
 
       if (dumpValidado.preRequisitosTecnologia.length > 0) {
-        await this.db.preRequisitosTecnologia.bulkPut(dumpValidado.preRequisitosTecnologia);
+        operacoes.push(
+          this.db.preRequisitosTecnologia.bulkPut(dumpValidado.preRequisitosTecnologia)
+        );
       }
+
+      await Promise.all(operacoes);
     });
   }
 

@@ -156,5 +156,18 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Evidência do Teste:** O Cenário 2 de `tests/e2e/fase7-arvore-estoque.spec.ts` comprova o cadastro de fornecedor, armazém e item, adição de BOM em falta, exibição na Compra Sugerida, bloqueio de saída com saldo insuficiente e cobertura automática da BOM após entrada de estoque.
 - **Motivo:** Assegurar consistência transacional entre movimentações físicas de armazém e prontidão de materiais das cidades.
 
+## [2026-11-01] DEC-021 — Batching de Rotas (`THREE.LineSegments`), Níveis de Detalhe (LOD) de Vegetação e Seletor Automático de Qualidade
+- **Contexto:** A Fase 8 exige que o perfil carga (500 cidades, 5.000 tarefas, centenas de conexões) mantenha tempo de quadro `p95 ≤ 16,7 ms` (60 fps) com câmera em movimento na lente Padrão, com níveis de detalhe por distância e seletor de qualidade automático (`baixa`, `media`, `alta`).
+- **Decisão:** (1) Refatoração de `src/map/rotasLigacoes.ts` para agrupar todas as curvas Bezier por estilo (`cor|opacidade`) em malhas consolidadas `THREE.LineSegments`, reduzindo ~500–750 chamadas de desenho para `≤ 4` draw calls; (2) Criação de `src/map/vegetacaoLod.ts` (`GerenciadorVegetacaoLOD`) com 3 estágios de LOD por distância (`lod0_alta`, `lod1_media`, `lod2_oculto`); (3) Implementação de `definirQualidadeGrafica('automatica')` e cache `assinaturaTerritorios` em `src/map/MapView.ts`.
+- **Evidência do Teste:** Os testes `tests/unit/desempenho-fase8.test.ts` e `tests/e2e/fase8-desempenho.spec.ts` comprovam `≤ 4` draw calls nas rotas, transição automática entre os 3 níveis de LOD e `p95 ≤ 16,7 ms` com 500 cidades e câmera em movimento.
+- **Motivo:** Eliminar gargalos de chamadas de desenho da GPU e re-triangulação de geometria durante navegação contínua.
+
+## [2026-11-01] DEC-022 — Worker para Recálculos Pesados, Virtualização por Janela (`ListaVirtualizada`) e Otimização de Importação JSON de 5 MB
+- **Contexto:** A Fase 8 e a Tabela 7.4 exigem Worker para recálculos pesados, listas longas virtualizadas nos painéis, importação de JSON de 5 MB em `≤ 3 s` e pacote inicial comprimido `≤ 1,5 MB`.
+- **Decisão:** (1) Criação de `src/workers/recalculo.worker.ts` e `executarRecalculoPesadoWorker` (`src/workers/index.ts`); (2) Criação de `src/ui/ListaVirtualizada.tsx` integrado a `AbaTarefas.tsx` e `AbaFinancas.tsx`; (3) Eliminação da dupla validação Zod entre store e `RepositorioDexie.importar` + paralelização com `Promise.all` dentro da transação IndexedDB; (4) Divisão de pacotes (`manualChunks`) em `vite.config.ts` (`450,01 KB` gzip total).
+- **Evidência do Teste:** Comprovado em `tests/unit/desempenho-fase8.test.ts` (importação de 8,49 MB em `1,44 s`, pacote inicial em `450,01 KB` gzip, recálculo incremental em `< 1 ms`) e `tests/e2e/fase8-desempenho.spec.ts` (virtualização ativa e memória estável).
+- **Motivo:** Atender com folga todas as 8 metas quantitativas da Tabela 7.4.
+
+
 
 
