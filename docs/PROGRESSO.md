@@ -114,3 +114,38 @@
 9. [x] Criar suíte de testes unitários para submódulos do mapa em `tests/unit/mapa-grade-geometria.test.ts` (6 testes aprovados cobrindo inserção/busca na grade espacial, integridade das 8 malhas procedurais, ponto em polígono e mapeamento de fases).
 10. [x] Criar teste E2E de aceitação da Fase 4 em `tests/e2e/fase4-mapa3d.spec.ts` comprovando os critérios da Seção 8: cidades renderizadas em InstancedMesh, clique que abre o painel do projeto, persistência de movimento e medição de desempenho no perfil carga.
 11. [x] Manter suíte 100% verde: 184 testes unitários no Vitest (14 arquivos), 3 testes E2E no Playwright, 0 erros no ESLint, 0 violações de camada no `dependency-cruiser` (64 módulos) e compilação de produção do Vite bem-sucedida.
+
+---
+
+## Plano e Checklist da Fase 5 — Painel da Cidade Completo
+
+1. [x] Implementar componente `GraficoFinancasSvg.tsx` nativo em SVG para projeção e histórico financeiro de 12 meses (6 meses históricos + 6 meses projetados por recorrência) com barras duplas de receita/custo, linha de base zero e responsividade.
+2. [x] Implementar `AbaVisaoGeral.tsx` com decomposição transparente da pontuação de saúde (penalidades por tarefas vencidas, fluxo negativo, baixa moral e bloqueios), metas de horas semanais com barra de progresso, resumo de conexões estratégicas e notas com edição em linha/modal.
+3. [x] Implementar `AbaTarefas.tsx` com alternância entre visualização em Lista hierárquica por Frente e Quadro Kanban de 4 colunas (Pendente, Em Andamento, Bloqueada, Feita), filtros por status e prazo, destaque de dependências impeditivas e registro ágil de horas.
+4. [x] Implementar `AbaClientes.tsx` com listagem de clientes vinculados, contratos recorrentes (R$/mês), cálculo de concentração de receita, alerta para falta de contato há mais de 60 dias (`Config.detectores.diasUltimoContatoCliente`) e botão de ação rápida "Contato Hoje".
+5. [x] Implementar `AbaFinancas.tsx` integrando o fluxo líquido do mês atual, o gráfico analítico SVG de 12 meses, a projeção de 6 meses de recorrência, o ROI por hora com ranking imperial (`#X no Império`), detalhamento de financiamento cruzado e histórico de lançamentos com filtros.
+6. [x] Implementar `AbaEstoque.tsx` exibindo a Lista de Materiais (BOM) do projeto, status de cobertura (`✓ Coberto` vs. `⚠️ Em Falta`), detalhamento de saldos por armazém e síntese de compras com botão de cópia de texto formatado para a área de transferência (`navigator.clipboard`).
+7. [x] Implementar `AbaPd.tsx` com tecnologias aplicadas ao projeto (efeitos em velocidade, custo ou receita), banco de tecnologias dominadas disponíveis no império, horas de pesquisa acumuladas e modal de aplicação de tecnologia.
+8. [x] Implementar `ModalEditarProjeto.tsx` para alteração de nome, setor, horas-alvo por semana, modalidade de autonomia e notas.
+9. [x] Orquestrar todas as abas e modais no `PainelProjeto.tsx`, mantendo persistência de estado e modal de arquivamento para Ruínas com exigência obrigatória de lições aprendidas.
+10. [x] Criar suíte de testes E2E dedicada da Fase 5 em `tests/e2e/fase5-painel.spec.ts` com 6 cenários de teste automatizados validando individualmente cada uma das 6 abas e todos os elementos da Tabela 6.5.
+11. [x] Manter suíte 100% verde: 184 testes unitários no Vitest (14 arquivos), 9 testes E2E no Playwright (4 arquivos: fase 0, 3, 4 e 5), 0 erros no ESLint, 0 violações no `dependency-cruiser` (72 módulos) e compilação de produção aprovada.
+
+---
+
+## Plano e Checklist da Fase 6 — Lentes, Minimapa, Feed e Busca
+
+1. [ ] Implementar as 8 lentes estratégicas de visualização do mapa (atalhos 1 a 8):
+   - `[1]` Padrão (cor por saúde)
+   - `[2]` Finanças (cor por fluxo de caixa mensal, espessura de rotas por financiamento)
+   - `[3]` Tempo (cor por horas registradas vs. horas-alvo na semana)
+   - `[4]` Rede (realce de conexões e rotas entre cidades, atenuação de nós isolados)
+   - `[5]` Risco (cor por concentração de clientes e fornecedores)
+   - `[6]` Clientes (cor por clientes ativos e dias desde o último contato)
+   - `[7]` Estoque (cor por cobertura de materiais da BOM)
+   - `[8]` P&D (cor por tecnologias aplicadas e projetos de pesquisa ativos)
+2. [ ] Implementar Minimapa aéreo no canto da tela com contornos dos territórios dos setores, pontos das cidades coloridos pela lente ativa e retângulo de frustum da câmera.
+3. [ ] Implementar Feed de Eventos cronológico com selos de cartas de mensageiro, agrupamento por semana e ações interativas de resposta a eventos de inteligência.
+4. [ ] Implementar Busca Global (`/` ou `Ctrl+K`) com busca por nome de projeto, tarefa, cliente, item e tecnologia, com animação suave de voo da câmera Three.js até o destino.
+5. [ ] Criar testes unitários e de integração E2E para lentes, minimapa, feed e busca.
+

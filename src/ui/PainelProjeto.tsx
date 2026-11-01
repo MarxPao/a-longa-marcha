@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import type { Tarefa } from '../domain';
-import { useCampanhaStore } from '../store';
-import { textosPtBr } from '../textos/pt-BR';
+import { useCampanhaStore } from '../../src/store';
+import { textosPtBr } from '../../src/textos/pt-BR';
 import {
-  formatarData,
-  formatarHoras,
-  formatarMoeda,
   formatarPercentual,
   obterInfoFase,
   obterInfoSaude,
 } from './formatadores';
+import { AbaClientes } from './painel/AbaClientes';
+import { AbaEstoque } from './painel/AbaEstoque';
+import { AbaFinancas } from './painel/AbaFinancas';
+import { AbaPd } from './painel/AbaPd';
+import { AbaTarefas } from './painel/AbaTarefas';
+import { AbaVisaoGeral } from './painel/AbaVisaoGeral';
+import { ModalEditarProjeto } from './painel/ModalEditarProjeto';
 
 type AbaPainel = 'visaoGeral' | 'tarefas' | 'clientes' | 'financas' | 'estoque' | 'pd';
 
@@ -19,11 +22,10 @@ export function PainelProjeto(): React.JSX.Element | null {
   const derivadosPorProjeto = useCampanhaStore((s) => s.derivadosPorProjeto);
   const semanaAtual = useCampanhaStore((s) => s.semanaAtual);
   const selecionarProjeto = useCampanhaStore((s) => s.selecionarProjeto);
-  const atualizarEntidade = useCampanhaStore((s) => s.atualizarEntidade);
   const arquivarEntidade = useCampanhaStore((s) => s.arquivarEntidade);
-  const abrirModal = useCampanhaStore((s) => s.abrirModal);
 
   const [abaAtiva, setAbaAtiva] = useState<AbaPainel>('visaoGeral');
+  const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [modalRuinasAberto, setModalRuinasAberto] = useState(false);
   const [licoesAprendidas, setLicoesAprendidas] = useState('');
   const [erroRuinas, setErroRuinas] = useState<string | null>(null);
@@ -45,23 +47,7 @@ export function PainelProjeto(): React.JSX.Element | null {
 
   const moral = derivado?.moral.moral ?? 0.5;
 
-  // Coleções filtradas por este projeto
-  const tarefas = dump.tarefas.filter(
-    (t) => t.projetoId === projetoId && t.arquivadoEm === null
-  );
-  const lancamentos = dump.lancamentos.filter(
-    (l) => l.projetoId === projetoId && l.arquivadoEm === null
-  );
-  const vinculos = dump.vinculosCliente.filter(
-    (v) =>
-      v.projetoId === projetoId &&
-      v.arquivadoEm === null &&
-      (!v.fim || v.fim >= semanaAtual)
-  );
-  const itensDeLista = dump.itensDeLista.filter((i) => i.projetoId === projetoId);
-  const aplicacoes = dump.aplicacoes.filter((a) => a.projetoId === projetoId);
-
-  // Horas registradas na semana neste projeto
+  // Horas registradas na semana corrente neste projeto
   const horasNaSemana = dump.registrosDeHoras
     .filter(
       (r) =>
@@ -71,14 +57,18 @@ export function PainelProjeto(): React.JSX.Element | null {
     )
     .reduce((acc, r) => acc + r.horas, 0);
 
-  const alternarConclusaoTarefa = async (tarefa: Tarefa) => {
-    const novoStatus = tarefa.status === 'feita' ? 'pendente' : 'feita';
-    const concluidaEm = novoStatus === 'feita' ? semanaAtual : null;
-    await atualizarEntidade<Tarefa>('tarefas', tarefa.id, {
-      status: novoStatus,
-      concluidaEm,
-    });
-  };
+  // Contagens para os rótulos das abas
+  const totalTarefas = dump.tarefas.filter(
+    (t) => t.projetoId === projetoId && t.arquivadoEm === null
+  ).length;
+  const totalClientes = dump.vinculosCliente.filter(
+    (v) =>
+      v.projetoId === projetoId &&
+      v.arquivadoEm === null &&
+      (!v.fim || v.fim >= semanaAtual)
+  ).length;
+  const totalEstoque = dump.itensDeLista.filter((i) => i.projetoId === projetoId).length;
+  const totalAplicacoes = dump.aplicacoes.filter((a) => a.projetoId === projetoId).length;
 
   const confirmarArquivamentoRuinas = async () => {
     if (!licoesAprendidas.trim()) {
@@ -95,10 +85,7 @@ export function PainelProjeto(): React.JSX.Element | null {
   };
 
   return (
-    <aside
-      className="painel-lateral-direito"
-      data-testid="painel-lateral-projeto"
-    >
+    <aside className="painel-lateral-direito" data-testid="painel-lateral-projeto">
       {/* Cabeçalho do Painel */}
       <div className="painel-lateral-cabecalho">
         <div>
@@ -147,10 +134,7 @@ export function PainelProjeto(): React.JSX.Element | null {
           <span style={{ fontSize: '0.68rem', color: 'var(--bronze)', fontWeight: 600 }}>
             {textosPtBr.painelProjeto.fase}
           </span>
-          <span
-            style={{ fontWeight: 700, fontSize: '0.85rem' }}
-            data-testid="badge-fase-valor"
-          >
+          <span style={{ fontWeight: 700, fontSize: '0.85rem' }} data-testid="badge-fase-valor">
             {infoFase.icone} {infoFase.nome} ({infoFase.nivel})
           </span>
         </div>
@@ -178,17 +162,14 @@ export function PainelProjeto(): React.JSX.Element | null {
           <span style={{ fontSize: '0.68rem', color: 'var(--bronze)', fontWeight: 600 }}>
             {textosPtBr.painelProjeto.moral}
           </span>
-          <span
-            style={{ fontWeight: 700, fontSize: '0.85rem' }}
-            data-testid="badge-moral-valor"
-          >
+          <span style={{ fontWeight: 700, fontSize: '0.85rem' }} data-testid="badge-moral-valor">
             ⚡ {formatarPercentual(moral)}
           </span>
         </div>
       </div>
 
-      {/* Abas */}
-      <nav className="painel-lateral-abas">
+      {/* Navegação por Abas (Seção 6.5) */}
+      <nav className="painel-lateral-abas" data-testid="nav-abas-painel-projeto">
         <button
           type="button"
           className={`aba-item ${abaAtiva === 'visaoGeral' ? 'ativa' : ''}`}
@@ -203,7 +184,7 @@ export function PainelProjeto(): React.JSX.Element | null {
           data-testid="aba-tarefas"
           onClick={() => setAbaAtiva('tarefas')}
         >
-          {textosPtBr.painelProjeto.abas.tarefas} ({tarefas.length})
+          {textosPtBr.painelProjeto.abas.tarefas} ({totalTarefas})
         </button>
         <button
           type="button"
@@ -211,7 +192,7 @@ export function PainelProjeto(): React.JSX.Element | null {
           data-testid="aba-clientes"
           onClick={() => setAbaAtiva('clientes')}
         >
-          {textosPtBr.painelProjeto.abas.clientes} ({vinculos.length})
+          {textosPtBr.painelProjeto.abas.clientes} ({totalClientes})
         </button>
         <button
           type="button"
@@ -227,7 +208,7 @@ export function PainelProjeto(): React.JSX.Element | null {
           data-testid="aba-estoque"
           onClick={() => setAbaAtiva('estoque')}
         >
-          {textosPtBr.painelProjeto.abas.estoque} ({itensDeLista.length})
+          {textosPtBr.painelProjeto.abas.estoque} ({totalEstoque})
         </button>
         <button
           type="button"
@@ -235,358 +216,40 @@ export function PainelProjeto(): React.JSX.Element | null {
           data-testid="aba-pd"
           onClick={() => setAbaAtiva('pd')}
         >
-          {textosPtBr.painelProjeto.abas.pd} ({aplicacoes.length})
+          {textosPtBr.painelProjeto.abas.pd} ({totalAplicacoes})
         </button>
       </nav>
 
-      {/* Conteúdo da Aba */}
+      {/* Conteúdo Dinâmico da Aba Selecionada */}
       <div className="painel-lateral-corpo">
         {abaAtiva === 'visaoGeral' && (
-          <>
-            {/* Princípio 2: Lista dos descontos que compõem a saúde */}
-            <div className="descontos-saude-container">
-              <span
-                style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  color: 'var(--laca)',
-                  display: 'block',
-                  marginBottom: '0.4rem',
-                }}
-              >
-                {textosPtBr.painelProjeto.descontosSaudeTitulo}
-              </span>
-
-              {descontos.length === 0 ? (
-                <p style={{ fontSize: '0.82rem', color: '#0f5132' }}>
-                  {textosPtBr.painelProjeto.semDescontos}
-                </p>
-              ) : (
-                descontos.map((d, idx) => (
-                  <div key={idx} className="desconto-item">
-                    <span>⚠️ -{d.pontos} pts:</span>
-                    <span>{d.detalhe}</span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Metas e Horas */}
-            <div
-              style={{
-                background: '#fffdf7',
-                padding: '0.8rem',
-                borderRadius: '4px',
-                border: '1px solid var(--pergaminho-escuro)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginBottom: '0.4rem',
-                  fontSize: '0.82rem',
-                }}
-              >
-                <span style={{ fontWeight: 600 }}>
-                  {textosPtBr.painelProjeto.horasSemana}:
-                </span>
-                <span>
-                  {formatarHoras(horasNaSemana)} / {formatarHoras(projeto.horasAlvoSemana)}
-                </span>
-              </div>
-              <div
-                style={{
-                  width: '100%',
-                  height: '8px',
-                  backgroundColor: '#eee',
-                  borderRadius: '4px',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      projeto.horasAlvoSemana > 0
-                        ? (horasNaSemana / projeto.horasAlvoSemana) * 100
-                        : 100
-                    )}%`,
-                    height: '100%',
-                    backgroundColor:
-                      horasNaSemana >= projeto.horasAlvoSemana ? '#3E7C68' : '#B8923A',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Notas do Projeto */}
-            {projeto.notas && (
-              <div style={{ fontSize: '0.82rem', color: 'var(--tinta)' }}>
-                <strong>Notas:</strong>
-                <p style={{ marginTop: '0.2rem', whiteSpace: 'pre-wrap' }}>
-                  {projeto.notas}
-                </p>
-              </div>
-            )}
-
-            {/* Ações Rápidas */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-              <button
-                type="button"
-                className="botao-campanha botao-campanha-ouro"
-                style={{ flex: 1 }}
-                onClick={() => abrirModal('capturaRapida', 'horas')}
-              >
-                ⏱️ Registrar Horas
-              </button>
-              <button
-                type="button"
-                className="botao-campanha botao-campanha-laca"
-                data-testid="botao-arquivar-projeto"
-                onClick={() => setModalRuinasAberto(true)}
-              >
-                🏚️ {textosPtBr.painelProjeto.botoes.arquivarRuinas}
-              </button>
-            </div>
-          </>
+          <AbaVisaoGeral
+            projeto={projeto}
+            descontos={descontos}
+            horasNaSemana={horasNaSemana}
+            abrirModalRuinas={() => setModalRuinasAberto(true)}
+            abrirModalEditar={() => setModalEditarAberto(true)}
+          />
         )}
 
-        {abaAtiva === 'tarefas' && (
-          <div style={{ display: 'flex', flexFlow: 'column', gap: '0.6rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                Tarefas ({tarefas.length})
-              </span>
-              <button
-                type="button"
-                className="botao-campanha botao-campanha-ouro"
-                data-testid="botao-nova-tarefa"
-                onClick={() => abrirModal('capturaRapida', 'tarefa')}
-              >
-                + Nova Tarefa
-              </button>
-            </div>
+        {abaAtiva === 'tarefas' && <AbaTarefas projetoId={projeto.id} />}
 
-            {tarefas.length === 0 ? (
-              <p style={{ fontSize: '0.82rem', color: 'var(--bronze)' }}>
-                Nenhuma tarefa ativa. Clique acima para criar a primeira tarefa!
-              </p>
-            ) : (
-              tarefas.map((t) => (
-                <div
-                  key={t.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.5rem',
-                    borderRadius: '4px',
-                    backgroundColor: t.status === 'feita' ? '#f0f0f0' : '#fffdf7',
-                    border: '1px solid var(--pergaminho-escuro)',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={t.status === 'feita'}
-                    onChange={() => void alternarConclusaoTarefa(t)}
-                    style={{ cursor: 'pointer', width: 16, height: 16 }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <span
-                      style={{
-                        fontSize: '0.84rem',
-                        fontWeight: 600,
-                        textDecoration: t.status === 'feita' ? 'line-through' : 'none',
-                        color: t.status === 'feita' ? '#777' : 'var(--tinta)',
-                      }}
-                    >
-                      {t.titulo}
-                    </span>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--bronze)' }}>
-                      Prazo: {formatarData(t.prazo ?? '')} · Estimativa: {t.estimativaHoras}h
-                    </div>
-                  </div>
-                  <span
-                    className="badge"
-                    style={{
-                      fontSize: '0.7rem',
-                      backgroundColor:
-                        t.prioridade === 4
-                          ? '#f8d7da'
-                          : t.prioridade === 3
-                          ? '#fff3cd'
-                          : '#e2e3e5',
-                    }}
-                  >
-                    P{t.prioridade}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+        {abaAtiva === 'clientes' && <AbaClientes projetoId={projeto.id} />}
 
-        {abaAtiva === 'clientes' && (
-          <div style={{ display: 'flex', flexFlow: 'column', gap: '0.6rem' }}>
-            <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-              Vínculos de Clientes ({vinculos.length})
-            </span>
-            {vinculos.length === 0 ? (
-              <p style={{ fontSize: '0.82rem', color: 'var(--bronze)' }}>
-                Nenhum cliente ativo vinculado a este projeto.
-              </p>
-            ) : (
-              vinculos.map((v) => {
-                const cliente = dump.clientes.find((c) => c.id === v.clienteId);
-                return (
-                  <div
-                    key={v.id}
-                    style={{
-                      padding: '0.6rem',
-                      backgroundColor: '#fffdf7',
-                      border: '1px solid var(--pergaminho-escuro)',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                      {cliente?.nome ?? 'Cliente'}
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: '#245747' }}>
-                      Receita mensal: {formatarMoeda(v.receitaRecorrenteCentavos)}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
+        {abaAtiva === 'financas' && <AbaFinancas projeto={projeto} />}
 
-        {abaAtiva === 'financas' && (
-          <div style={{ display: 'flex', flexFlow: 'column', gap: '0.6rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                Lançamentos Financeiros ({lancamentos.length})
-              </span>
-              <button
-                type="button"
-                className="botao-campanha botao-campanha-ouro"
-                data-testid="botao-novo-lancamento"
-                onClick={() => abrirModal('capturaRapida', 'lancamento')}
-              >
-                + Lançar
-              </button>
-            </div>
+        {abaAtiva === 'estoque' && <AbaEstoque projetoId={projeto.id} />}
 
-            {lancamentos.length === 0 ? (
-              <p style={{ fontSize: '0.82rem', color: 'var(--bronze)' }}>
-                Nenhum lançamento registrado neste projeto.
-              </p>
-            ) : (
-              lancamentos.map((l) => (
-                <div
-                  key={l.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '0.5rem',
-                    backgroundColor: '#fffdf7',
-                    border: '1px solid var(--pergaminho-escuro)',
-                    borderRadius: '4px',
-                    fontSize: '0.82rem',
-                  }}
-                >
-                  <div>
-                    <span style={{ fontWeight: 600 }}>
-                      {dump.categoriasLancamento.find((c) => c.id === l.categoriaId)?.nome ?? 'Geral'}
-                    </span>
-                    <span style={{ fontSize: '0.72rem', color: '#666', marginLeft: '0.4rem' }}>
-                      {formatarData(l.data)}
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      fontWeight: 700,
-                      color: l.tipo === 'receita' ? '#245747' : 'var(--laca)',
-                    }}
-                  >
-                    {l.tipo === 'receita' ? '+' : '-'} {formatarMoeda(l.valorCentavos)}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {abaAtiva === 'estoque' && (
-          <div style={{ display: 'flex', flexFlow: 'column', gap: '0.6rem' }}>
-            <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-              Lista de Materiais (BOM) ({itensDeLista.length})
-            </span>
-            {itensDeLista.length === 0 ? (
-              <p style={{ fontSize: '0.82rem', color: 'var(--bronze)' }}>
-                Nenhum insumo ou equipamento cadastrado na BOM.
-              </p>
-            ) : (
-              itensDeLista.map((item) => {
-                const itemRef = dump.itens.find((i) => i.id === item.itemId);
-                return (
-                  <div
-                    key={item.id}
-                    style={{
-                      padding: '0.5rem',
-                      backgroundColor: '#fffdf7',
-                      border: '1px solid var(--pergaminho-escuro)',
-                      borderRadius: '4px',
-                      fontSize: '0.82rem',
-                    }}
-                  >
-                    <span style={{ fontWeight: 600 }}>{itemRef?.nome ?? 'Item'}</span>
-                    <div style={{ fontSize: '0.74rem', color: '#666' }}>
-                      Necessário: {item.quantidade} {itemRef?.unidade ?? 'un'} ·
-                      Status: {item.status}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {abaAtiva === 'pd' && (
-          <div style={{ display: 'flex', flexFlow: 'column', gap: '0.6rem' }}>
-            <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-              Tecnologias Aplicadas ({aplicacoes.length})
-            </span>
-            {aplicacoes.length === 0 ? (
-              <p style={{ fontSize: '0.82rem', color: 'var(--bronze)' }}>
-                Nenhuma tecnologia aplicada neste projeto ainda.
-              </p>
-            ) : (
-              aplicacoes.map((ap) => {
-                const tec = dump.tecnologias.find((t) => t.id === ap.tecnologiaId);
-                return (
-                  <div
-                    key={ap.id}
-                    style={{
-                      padding: '0.5rem',
-                      backgroundColor: '#fffdf7',
-                      border: '1px solid var(--pergaminho-escuro)',
-                      borderRadius: '4px',
-                      fontSize: '0.82rem',
-                    }}
-                  >
-                    <span style={{ fontWeight: 600 }}>🔬 {tec?.nome ?? 'Tecnologia'}</span>
-                    <div style={{ fontSize: '0.74rem', color: '#666' }}>
-                      Efeito: {ap.efeito}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
+        {abaAtiva === 'pd' && <AbaPd projetoId={projeto.id} />}
       </div>
+
+      {/* Modal Editar Projeto */}
+      {modalEditarAberto && (
+        <ModalEditarProjeto
+          projeto={projeto}
+          aoFechar={() => setModalEditarAberto(false)}
+        />
+      )}
 
       {/* Modal de confirmação de arquivamento como Ruínas */}
       {modalRuinasAberto && (
@@ -603,9 +266,7 @@ export function PainelProjeto(): React.JSX.Element | null {
               </button>
             </div>
             <div className="modal-corpo">
-              <p style={{ fontSize: '0.84rem' }}>
-                {textosPtBr.painelProjeto.ruinasAviso}
-              </p>
+              <p style={{ fontSize: '0.84rem' }}>{textosPtBr.painelProjeto.ruinasAviso}</p>
               <div className="campo-form">
                 <label className="rotulo-form">Lições Aprendidas (Obrigatório):</label>
                 <textarea

@@ -132,7 +132,12 @@ export function CapturaRapida(): React.JSX.Element | null {
       <div className="modal-caixa" style={{ maxWidth: 520 }}>
         <div className="modal-cabecalho">
           <h3 className="modal-titulo">⚡ {textosPtBr.hud.capturaRapida}</h3>
-          <button type="button" className="botao-campanha" onClick={fecharModal}>
+          <button
+            type="button"
+            className="botao-campanha"
+            data-testid="botao-fechar-captura-rapida"
+            onClick={fecharModal}
+          >
             ✕
           </button>
         </div>

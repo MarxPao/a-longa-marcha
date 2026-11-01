@@ -111,3 +111,20 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Decisão:** Criação de `gradeEspacial.ts` (`GradeEspacial<T>`), particionando o mundo em células hash de tamanho 30x30, permitindo consultas `buscarMaisProximo` e `buscarNoRaio` em tempo O(1). O `MapView` mapeia eventos de clique (seleção e foco), arrasto (reposicionamento com validação no store e suporte a `Ctrl+Z`), Shift+arrasto (criação de ligações com prévia elástica) e duplo clique no terreno (fundação de projeto detectando setor por ponto-em-polígono).
 - **Evidência do Teste:** O teste E2E `fase4-mapa3d.spec.ts` comprova o fluxo: clique abre o painel lateral com título do projeto, arrastar persiste a nova posição `(x, z)` no store e no IndexedDB, e a verificação do `dependency-cruiser` comprova 0 violações de camada em `src/map`.
 - **Motivo:** Preservar a integridade da arquitetura desacoplada e garantir resposta de interação instantânea mesmo em campanhas com 500 cidades.
+
+---
+
+## [2026-11-01] DEC-015 — Subcomponentes Modulares do Painel da Cidade e Gráficos Analíticos em SVG
+- **Contexto:** O Documento Mestre (Seção 6.5, Tabela 6.5) e o Critério de Aceite da Fase 5 exigem o Painel da Cidade completo, acessível ao clicar em uma cidade no mapa ou pelo atalho rápido, exibindo 6 abas dedicadas: Visão Geral, Tarefas, Clientes, Finanças, Estoque e P&D. As finanças exigem gráfico de fluxo dos últimos 6 meses e projeção dos próximos 6 meses baseada estritamente em recorrências, sem bibliotecas pesadas externas (ex: Chart.js).
+- **Decisão:** Implementação de `GraficoFinancasSvg.tsx` utilizando SVG nativo parametrizado com barras duplas (verde para receita, carmim para custos), linha de base zero, escala dinâmica e tooltip nativo. A `AbaVisaoGeral.tsx` decompõe visualmente o cálculo da saúde (Princípio 2: o usuário edita a causa, nunca o resultado) e resume metas de horas e conexões estratégicas. A `AbaFinancas.tsx` integra o gráfico SVG, fluxo do mês atual, projeção de 6 meses, ranking imperial de ROI por hora e detalhamento de financiamento cruzado.
+- **Evidência do Teste:** O teste E2E `fase5-painel.spec.ts` (`Aba Finanças: exibe fluxo do mês, gráfico SVG e ranking imperial de ROI`) valida a presença dos seletores `grafico-financas-svg`, `fluxo-mes-atual` e `ranking-roi-projeto`.
+- **Motivo:** Cumprir o princípio de visualização clara e honesta em 30 segundos com zero dependências externas adicionais de gráficos e tempo de renderização instantâneo.
+
+---
+
+## [2026-11-01] DEC-016 — Gestão de Tarefas, Clientes e Estoque com Transparência Causal
+- **Contexto:** As abas operacionais do Painel da Cidade (Tarefas, Clientes, Estoque e P&D) necessitam de interação rica em tempo real: alternância entre lista agrupada por frente e quadro Kanban de 4 colunas com indicação de tarefas bloqueadas; monitoramento de contratos de clientes com alerta visual para falta de contato há mais de 60 dias (`Config.detectores.diasUltimoContatoCliente`); lista de materiais (BOM) com cálculo de cobertura contra múltiplos armazéns e botão de copiar lista de compras; e vinculação de tecnologias dominadas com efeitos imediatos de velocidade, custo e receita.
+- **Decisão:** Criação de `AbaTarefas.tsx`, `AbaClientes.tsx`, `AbaEstoque.tsx` e `AbaPd.tsx` isoladas em `src/ui/painel/`. A `AbaTarefas` provê alternância fluida Lista/Kanban com filtros e marcação de conclusão que dispara recálculo de moral e saúde; a `AbaClientes` calcula concentração de receita e provê ação de registro de contato; a `AbaEstoque` avalia a cobertura da BOM e sintetiza faltas em texto puro para a área de transferência via `navigator.clipboard`; e a `AbaPd` gerencia a aplicação de tecnologias dominadas.
+- **Evidência do Teste:** A suíte E2E `fase5-painel.spec.ts` (6 cenários de teste dedicados) e os 184 testes unitários do Vitest comprovam o funcionamento de todas as 6 abas sem regressões.
+- **Motivo:** Permitir ao usuário gerenciar a operação completa de uma cidade em um painel coeso e padronizado com os princípios estéticos e conceituais de A Longa Marcha.
+
