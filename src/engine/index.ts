@@ -1,1 +1,11 @@
 export { gerarHashSemente, amostrarTerrenoPorSemente } from './terreno-puro';
+export * from './tempo';
+export * from './moral';
+export * from './saude';
+export * from './materiais';
+export * from './maturidade';
+export * from './financas';
+export * from './risco';
+export * from './indice';
+export * from './derivados';
+export * from './incremental';

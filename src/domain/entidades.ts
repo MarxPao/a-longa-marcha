@@ -662,7 +662,7 @@ export const configPadrao: Config = {
     diasUltimoContatoCliente: 60,
     toleranciaReceitaEmDiaDias: 7,
   },
-  mapa: { sementeTerreno: 'longa-marcha-2026', qualidade: 'auto', lentesAtivas: ['padrao'] },
+  mapa: { sementeTerreno: '', qualidade: 'auto', lentesAtivas: ['padrao'] },
   brief: { concluido: false },
 };
 

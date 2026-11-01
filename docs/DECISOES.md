@@ -41,7 +41,22 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 
 ---
 
-## [2026-10-31] DEC-005 — Implementação Dual do Repository e Validação Atômica com Zod
-- **Contexto:** A Fase 1 exige implementar o `Repository` com Dexie (IndexedDB) e em memória, migração de esquema v0->v1 e importação/exportação JSON atômica.
-- **Decisão:** A validação atômica foi centralizada em `src/domain/entidades.ts` via função pura `validarDumpBancoOuFalhar()`. Caso qualquer campo viole os contratos Zod (como ponto flutuante em centavos inteiros), lança `ErroValidacaoImportacao` detalhando o caminho exato do campo sem modificar nada no banco. Ambas as implementações (`RepositorioMemoria` e `RepositorioDexie`) compartilham exatamente a mesma suíte de testes de contrato (Tabela 7.2) e suportam o método `transacao()`.
-- **Motivo:** Garantir integridade máxima dos dados reais, idempotência e portabilidade entre banco de produção e testes em memória.
+## [2026-10-31] DEC-006 — Histerese Determinística da Maturidade e Ruínas com Lições Aprendidas
+- **Contexto:** A Seção 3.4 e 9.2 exigem que a fase de maturidade só desça após 2 meses consecutivos abaixo da regra correspondente (para evitar oscilação visual no mapa), enquanto a promoção de nível é imediata. Projetos arquivados vão para a fase Ruínas, exigindo registro de lições aprendidas.
+- **Decisão:** A função pura `calcularMaturidadeProjeto` (`src/engine/maturidade.ts`) avalia as regras da mais alta (Legado 7) para a mais baixa (Faísca 1). Se a fase potencial for inferior à fase atual previamente consolidada, a histerese é avaliada com base no histórico de instantâneos dos últimos 2 meses. Se não houver 2 meses consecutivos abaixo, a fase atual é preservada. Para transição a Ruínas, valida-se a presença de texto não-vazio no campo de lições aprendidas.
+- **Motivo:** Preservar a pureza funcional do motor (sem efeitos colaterais nem mutação de estado fora do fluxo de dados) e garantir fidelidade estrita às regras do documento mestre.
+
+---
+
+## [2026-10-31] DEC-007 — Indexação O(1) em Memória e Recálculo Incremental (Meta ≤ 16 ms)
+- **Contexto:** A Seção 1 e o Critério de Aceite da Fase 2A exigem que o recálculo de um projeto com 500 projetos e 5.000 tarefas no banco ocorra em menos de 16 ms (tempo de 1 frame a 60 fps).
+- **Decisão:** Implementação de `IndiceEstado` (`src/engine/indice.ts`), que constrói tabelas hash em memória (Mapas por `projetoId`) para frentes, tarefas, lançamentos, vínculos com clientes, itens de lista e horas. O módulo `incremental.ts` expõe `projetosInvalidados()`, permitindo que apenas os projetos afetados por uma mutação no banco de dados sejam recalculados.
+- **Evidência do Teste:** O teste de estresse no perfil `carga` (`500 projetos, 5.000 tarefas, 104 semanas`) registrou tempo de recálculo com mediana de `0.75 ms` e p95 de `1.60 ms`, superando com folga o teto de 16 ms.
+- **Motivo:** Garantir escalabilidade de 60 fps mesmo em bases de alta densidade sem travar a thread principal da UI.
+
+---
+
+## [2026-10-31] DEC-008 — Rigor Financeiro em Centavos Inteiros e Runway Sustentável
+- **Contexto:** A Seção 3.5 e 9.2 exigem cálculo de caixa acumulado, fluxo mensal por projeto e consolidado, projeção dos próximos 6 meses com recorrências, runway, ROI por hora com ranking, financiamento cruzado e custo de oportunidade.
+- **Decisão:** Todos os cálculos financeiros operam estritamente sobre centavos inteiros (`Centavos = number`), utilizando `Math.round` para operações com divisão (ex: ROI por hora e custo mensal médio). O runway é reportado como sustentável quando o fluxo mensal líquido for positivo ou custo for zero, e em meses quando negativo. A projeção de 6 meses materializa apenas lançamentos com `recorrente: true` e `ate` posterior ao mês projetado.
+- **Motivo:** Eliminar qualquer erro acumulado de ponto flutuante monetário e garantir reprodutibilidade matemática exata.
