@@ -9,3 +9,6 @@ export * from './EditorRegistros';
 export * from './ModalCriarProjeto';
 export * from './PlaceholderMapa2D';
 export * from './PainelTerrenoFase0';
+export * from './Minimapa';
+export * from './FeedEventos';
+export * from './BuscaGlobal';

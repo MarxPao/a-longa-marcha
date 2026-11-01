@@ -6,8 +6,12 @@ import { textosPtBr } from '../textos/pt-BR';
 import {
   BarraSuperior,
   BriefInicial,
+  BuscaGlobal,
+  CATALOGO_LENTES,
   CapturaRapida,
   EditorRegistros,
+  FeedEventos,
+  Minimapa,
   ModalCriarProjeto,
   ModalFecharTurno,
   PainelProjeto,
@@ -26,10 +30,13 @@ export function App(): React.JSX.Element {
   const metricasTerreno = useTerrenoFase0Store((s) => s.metricas);
   const atualizarMetricasMalha = useTerrenoFase0Store((s) => s.atualizarMetricasMalha);
 
-  // Store Campanha Fase 3 & 4
+  // Store Campanha Fase 3, 4, 5 & 6
   const dump = useCampanhaStore((s) => s.dump);
   const derivadosPorProjeto = useCampanhaStore((s) => s.derivadosPorProjeto);
   const vistaAtiva = useCampanhaStore((s) => s.vistaAtiva);
+  const lenteAtiva = useCampanhaStore((s) => s.lenteAtiva);
+  const definirLenteAtiva = useCampanhaStore((s) => s.definirLenteAtiva);
+  const semanaAtual = useCampanhaStore((s) => s.semanaAtual);
   const projetoSelecionadoId = useCampanhaStore((s) => s.projetoSelecionadoId);
   const selecionarProjeto = useCampanhaStore((s) => s.selecionarProjeto);
   const abrirModal = useCampanhaStore((s) => s.abrirModal);
@@ -39,6 +46,10 @@ export function App(): React.JSX.Element {
   const limparNotificacao = useCampanhaStore((s) => s.limparNotificacao);
 
   const [inputSemente, setInputSemente] = useState(semente);
+  const [alvoCameraMinimapa, setAlvoCameraMinimapa] = useState<{ x: number; z: number }>({
+    x: 0,
+    z: 0,
+  });
 
   // Inicializa mapa Three.js com suporte completo a cidades procedurais e interação
   useEffect(() => {
@@ -91,7 +102,7 @@ export function App(): React.JSX.Element {
     };
   }, [atualizarMetricasMalha, selecionarProjeto, abrirModal]);
 
-  // Sincroniza estado da campanha (projetos, setores, ligações, derivados) no mapa 3D
+  // Sincroniza estado da campanha (projetos, setores, ligações, derivados, lente) no mapa 3D
   useEffect(() => {
     if (mapViewRef.current) {
       mapViewRef.current.sincronizarEstado({
@@ -102,15 +113,28 @@ export function App(): React.JSX.Element {
         derivadosPorProjeto,
         projetoSelecionadoId,
         sementeTerreno: semente,
+        lenteAtiva,
+        clientes: dump.clientes,
+        vinculosCliente: dump.vinculosCliente,
+        itensLista: dump.itensDeLista,
+        aplicacoes: dump.aplicacoes,
+        hoje: semanaAtual,
       });
     }
   }, [
     dump.projetos,
     dump.setores,
     dump.ligacoes,
+    dump.tiposLigacao,
+    dump.clientes,
+    dump.vinculosCliente,
+    dump.itensDeLista,
+    dump.aplicacoes,
     derivadosPorProjeto,
     projetoSelecionadoId,
     semente,
+    lenteAtiva,
+    semanaAtual,
   ]);
 
   // Sincroniza input de semente quando ela muda na store
@@ -141,7 +165,31 @@ export function App(): React.JSX.Element {
         return;
       }
 
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        abrirModal('buscaGlobal');
+        return;
+      }
+
       if (isInput) return;
+
+      // Atalho / para Busca Global
+      if (e.key === '/') {
+        e.preventDefault();
+        abrirModal('buscaGlobal');
+        return;
+      }
+
+      // Teclas 1 a 8 para alternar as 8 Lentes do Mapa (Seção 4.6 e 6.7)
+      if (e.key >= '1' && e.key <= '8' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        const idx = parseInt(e.key, 10) - 1;
+        const lenteDef = CATALOGO_LENTES[idx];
+        if (lenteDef) {
+          definirLenteAtiva(lenteDef.id);
+        }
+        return;
+      }
 
       const key = e.key.toUpperCase();
       if (key === 'H') {
@@ -156,12 +204,23 @@ export function App(): React.JSX.Element {
       } else if (key === 'E') {
         e.preventDefault();
         abrirModal('capturaRapida', 'evento');
+      } else if (key === 'F') {
+        e.preventDefault();
+        const estado = useCampanhaStore.getState();
+        const idSel = estado.projetoSelecionadoId;
+        if (idSel) {
+          const proj = estado.dump.projetos.find((p) => p.id === idSel);
+          if (proj && mapViewRef.current) {
+            mapViewRef.current.voarAte(proj.x, proj.z);
+            setAlvoCameraMinimapa({ x: proj.x, z: proj.z });
+          }
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [abrirModal, fecharModal, selecionarProjeto, desfazer]);
+  }, [abrirModal, fecharModal, selecionarProjeto, desfazer, definirLenteAtiva]);
 
   // Auto-limpar notificação após 4s
   useEffect(() => {
@@ -200,6 +259,25 @@ export function App(): React.JSX.Element {
 
         {/* Painel Lateral do Projeto */}
         {projetoSelecionadoId && <PainelProjeto />}
+
+        {/* Minimapa e Seletor de Lentes (Seção 4.5 e 4.6) */}
+        {vistaAtiva === 'mapa' && (
+          <Minimapa
+            alvoCamera={alvoCameraMinimapa}
+            aoNavegarCamera={(x, z) => {
+              mapViewRef.current?.voarAte(x, z);
+              setAlvoCameraMinimapa({ x, z });
+            }}
+          />
+        )}
+
+        {/* Feed de Eventos e Selo de Alerta Animado (Seção 4.5) */}
+        <FeedEventos
+          aoFocarProjeto={(_projetoId, x, z) => {
+            mapViewRef.current?.voarAte(x, z);
+            setAlvoCameraMinimapa({ x, z });
+          }}
+        />
       </main>
 
       {/* Barra de Terreno Flutuante (Preserva Compatibilidade com Teste E2E Fase 0) */}
@@ -270,6 +348,12 @@ export function App(): React.JSX.Element {
       <ModalFecharTurno />
       <ModalCriarProjeto />
       <EditorRegistros />
+      <BuscaGlobal
+        aoVoarParaCoordenada={(x, z) => {
+          mapViewRef.current?.voarAte(x, z);
+          setAlvoCameraMinimapa({ x, z });
+        }}
+      />
 
       {/* Notificação Toast */}
       {notificacao && (

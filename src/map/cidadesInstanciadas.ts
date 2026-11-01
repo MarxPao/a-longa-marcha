@@ -5,6 +5,10 @@ import {
   construirGeometriasCidades,
   type NivelMaturidadeVisual,
 } from './cidadesGeometria';
+import {
+  calcularCorCidadePorLente,
+  type DadosContextoLente,
+} from './lentesCores';
 
 export interface InfoInstanciaCidade {
   projetoId: UUID;
@@ -132,7 +136,8 @@ export class GerenciadorCidadesInstanciadas {
     projetos: Projeto[],
     derivados: Map<UUID, DerivadosProjeto>,
     obterAlturaTerreno: (x: number, z: number) => number,
-    projetoSelecionadoId: UUID | null
+    projetoSelecionadoId: UUID | null,
+    contextoLente?: DadosContextoLente
   ): void {
     this.instanciasPorProjetoId.clear();
     this.projetosPorChaveMalha.clear();
@@ -187,16 +192,21 @@ export class GerenciadorCidadesInstanciadas {
         matrixTemp.compose(posTemp, quatTemp, scaleTemp);
         malha.setMatrixAt(i, matrixTemp);
 
-        // Determinação da cor por saúde
-        const saude = derivados.get(p.id)?.saude.pontuacao ?? 100;
-        if (nivel === 0) {
-          corTemp.set('#5A554E'); // Ruínas
-        } else if (saude >= 70) {
-          corTemp.set('#3E7C68'); // Saudável: Jade
-        } else if (saude >= 40) {
-          corTemp.set('#D09B2C'); // Atenção: Âmbar
+        // Determinação da cor pela lente ativa (Seção 4.6)
+        if (contextoLente) {
+          const corHex = calcularCorCidadePorLente(p, contextoLente);
+          corTemp.set(corHex);
         } else {
-          corTemp.set('#8E1F1A'); // Crítico: Laca
+          const saude = derivados.get(p.id)?.saude.pontuacao ?? 100;
+          if (nivel === 0) {
+            corTemp.set('#5A554E'); // Ruínas
+          } else if (saude >= 70) {
+            corTemp.set('#3E7C68'); // Saudável: Jade
+          } else if (saude >= 40) {
+            corTemp.set('#D09B2C'); // Atenção: Âmbar
+          } else {
+            corTemp.set('#8E1F1A'); // Crítico: Laca
+          }
         }
         malha.setColorAt(i, corTemp);
 

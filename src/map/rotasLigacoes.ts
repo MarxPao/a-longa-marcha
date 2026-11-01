@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Ligacao, Projeto, TipoLigacao, UUID } from '../domain';
+import type { LenteMapa, Ligacao, Projeto, TipoLigacao, UUID } from '../domain';
 
 export class GerenciadorRotas {
   private readonly cena: THREE.Scene;
@@ -40,7 +40,8 @@ export class GerenciadorRotas {
     ligacoes: Ligacao[],
     projetosPorId: Map<UUID, Projeto>,
     obterAlturaTerreno: (x: number, z: number) => number,
-    tiposLigacaoPorId?: Map<UUID, TipoLigacao>
+    tiposLigacaoPorId?: Map<UUID, TipoLigacao>,
+    lenteAtiva?: LenteMapa
   ): void {
     this.limpar();
 
@@ -72,15 +73,30 @@ export class GerenciadorRotas {
       const geometria = new THREE.BufferGeometry().setFromPoints(pontos);
 
       let corRota = '#7A5A2B'; // padrão bronze
+      let opacidade = 0.7;
       const tipo = tiposLigacaoPorId?.get(lig.tipoId);
       if (tipo?.cor) {
         corRota = tipo.cor;
       }
 
+      if (lenteAtiva === 'financas') {
+        const ehFinanciamento =
+          lig.tipoId.includes('financia') ||
+          Boolean(tipo?.nome && tipo.nome.toLowerCase().includes('financia'));
+        if (ehFinanciamento) {
+          corRota = '#E5B842';
+          opacidade = 1.0;
+        } else {
+          opacidade = 0.25;
+        }
+      } else if (lenteAtiva === 'rede') {
+        opacidade = 1.0;
+      }
+
       const material = new THREE.LineBasicMaterial({
         color: corRota,
         transparent: true,
-        opacity: 0.7,
+        opacity: opacidade,
       });
 
       const linha = new THREE.Line(geometria, material);

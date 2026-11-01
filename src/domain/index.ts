@@ -6,3 +6,5 @@ export {
 } from './terreno';
 
 export * from './entidades';
+export * from './lentesCores';
+export * from './buscaGlobal';

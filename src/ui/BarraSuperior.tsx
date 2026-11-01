@@ -80,6 +80,16 @@ export function BarraSuperior(): React.JSX.Element {
       <div className="hud-acoes">
         <button
           type="button"
+          className="botao-campanha"
+          data-testid="botao-abrir-busca"
+          onClick={() => abrirModal('buscaGlobal')}
+          title="Busca Global [Atalho: /]"
+        >
+          🔍 Buscar [/]
+        </button>
+
+        <button
+          type="button"
           className="botao-campanha botao-campanha-ouro"
           data-testid="botao-captura-rapida"
           onClick={() => abrirModal('capturaRapida', 'horas')}

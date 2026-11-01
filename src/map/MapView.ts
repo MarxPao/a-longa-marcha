@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { createTerrain, type FiniteTerrain } from 'procedural-terrains';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import type {
+  Aplicacao,
+  Cliente,
+  ItemDeLista,
+  LenteMapa,
   Ligacao,
   MetricasTerrenoGerado,
   Projeto,
@@ -9,6 +13,7 @@ import type {
   Setor,
   TipoLigacao,
   UUID,
+  VinculoCliente,
 } from '../domain';
 import {
   amostrarTerrenoPorSemente,
@@ -17,6 +22,7 @@ import {
 } from '../engine';
 import { GerenciadorCidadesInstanciadas } from './cidadesInstanciadas';
 import { GradeEspacial } from './gradeEspacial';
+import { type DadosContextoLente, type InfoResumoDerivadoLente } from './lentesCores';
 import { GerenciadorRotas } from './rotasLigacoes';
 import { GerenciadorTerritorios } from './territorios';
 
@@ -28,6 +34,13 @@ export interface DadosEstadoMapa {
   derivadosPorProjeto: Map<UUID, DerivadosProjeto>;
   projetoSelecionadoId: UUID | null;
   sementeTerreno: SementeTerreno;
+  lenteAtiva?: LenteMapa;
+  clientes?: Cliente[];
+  vinculosCliente?: VinculoCliente[];
+  itensLista?: ItemDeLista[];
+  aplicacoes?: Aplicacao[];
+  horasRegistradasPorProjeto?: Map<UUID, number>;
+  hoje?: string;
 }
 
 export interface MetricasDesempenhoMapa {
@@ -78,6 +91,22 @@ export class MapView {
   // Cache de dados do mapa
   private projetosPorId: Map<UUID, Projeto> = new Map();
   private setoresAtuais: Setor[] = [];
+  private lenteAtual: LenteMapa = 'padrao';
+  private ultimoDadosEstado: DadosEstadoMapa | null = null;
+
+  // Animação de voo suave da câmera (busca e foco)
+  private intervaloVooId: number | null = null;
+  private animacaoVoo: {
+    inicioX: number;
+    inicioZ: number;
+    inicioDistancia: number;
+    destinoX: number;
+    destinoZ: number;
+    destinoDistancia: number;
+    tempoInicio: number;
+    duracaoMs: number;
+    aoConcluir?: () => void;
+  } | null = null;
 
   // Callbacks para o orquestrador (store)
   private readonly aoAtualizarTerreno?: OpcoesMapView['aoAtualizarTerreno'];
@@ -334,6 +363,11 @@ export class MapView {
   public sincronizarEstado(dados: DadosEstadoMapa): void {
     if (this.destruido) return;
 
+    this.ultimoDadosEstado = dados;
+    if (dados.lenteAtiva) {
+      this.lenteAtual = dados.lenteAtiva;
+    }
+
     if (dados.sementeTerreno !== this.sementeAtual) {
       void this.aplicarSemente(dados.sementeTerreno);
     }
@@ -349,11 +383,34 @@ export class MapView {
       }
     }
 
+    const resumoDerivados = new Map<UUID, InfoResumoDerivadoLente>();
+    for (const [id, d] of dados.derivadosPorProjeto.entries()) {
+      resumoDerivados.set(id, {
+        pontuacaoSaude: d.saude.pontuacao,
+        liquidoMesCentavos: d.fluxoMes?.liquidoCentavos ?? 0,
+        horasRegistradasSemana: dados.horasRegistradasPorProjeto?.get(id) ?? d.horasJanela / 2,
+        concentracaoRisco: d.bloqueios.total > 0 ? 0.6 : d.tarefasVencidas > 2 ? 0.4 : 0.1,
+      });
+    }
+
+    const contextoLente: DadosContextoLente = {
+      lente: this.lenteAtual,
+      derivadosPorProjeto: resumoDerivados,
+      ligacoes: dados.ligacoes,
+      clientes: dados.clientes,
+      vinculosCliente: dados.vinculosCliente,
+      itensLista: dados.itensLista,
+      aplicacoes: dados.aplicacoes,
+      horasRegistradasPorProjeto: dados.horasRegistradasPorProjeto,
+      hoje: dados.hoje,
+    };
+
     this.cidadesInstanciadas.atualizarCidades(
       dados.projetos,
       dados.derivadosPorProjeto,
       this.obterAlturaTerreno,
-      dados.projetoSelecionadoId
+      dados.projetoSelecionadoId,
+      contextoLente
     );
 
     this.territorios.atualizarTerritorios(dados.setores, this.obterAlturaTerreno);
@@ -364,8 +421,117 @@ export class MapView {
       dados.ligacoes,
       this.projetosPorId,
       this.obterAlturaTerreno,
-      tiposMap
+      tiposMap,
+      this.lenteAtual
     );
+  }
+
+  public definirLente(lente: LenteMapa): void {
+    this.lenteAtual = lente;
+    if (this.ultimoDadosEstado) {
+      this.sincronizarEstado({
+        ...this.ultimoDadosEstado,
+        lenteAtiva: lente,
+      });
+    }
+  }
+
+  public obterLenteAtual(): LenteMapa {
+    return this.lenteAtual;
+  }
+
+  public obterUuidCena(): string {
+    return this.cena.uuid;
+  }
+
+  /**
+   * Executa voo de câmera suave até as coordenadas (x, z) desejadas.
+   * Utilizado pela Busca Global (atalho /) e Foco (F).
+   */
+  public voarAte(
+    x: number,
+    z: number,
+    distancia = 180,
+    duracaoMs = 450,
+    aoConcluir?: () => void
+  ): void {
+    if (this.intervaloVooId !== null) {
+      window.clearInterval(this.intervaloVooId);
+      this.intervaloVooId = null;
+    }
+
+    const inicioX = this.alvoCamera.x;
+    const inicioZ = this.alvoCamera.z;
+    const inicioDistancia = this.distanciaCamera;
+    const tempoInicio = performance.now();
+    const duracaoReal = Math.max(80, duracaoMs);
+
+    this.animacaoVoo = {
+      inicioX,
+      inicioZ,
+      inicioDistancia,
+      destinoX: x,
+      destinoZ: z,
+      destinoDistancia: distancia,
+      tempoInicio,
+      duracaoMs: duracaoReal,
+      aoConcluir,
+    };
+
+    // Avanço inicial imediato para garantir resposta instantânea
+    this.alvoCamera.x = inicioX + (x - inicioX) * 0.25;
+    this.alvoCamera.z = inicioZ + (z - inicioZ) * 0.25;
+    this.atualizarPosicaoCamera();
+
+    this.intervaloVooId = window.setInterval(() => {
+      if (this.destruido || !this.animacaoVoo) {
+        if (this.intervaloVooId !== null) {
+          window.clearInterval(this.intervaloVooId);
+          this.intervaloVooId = null;
+        }
+        return;
+      }
+
+      const decorrido = performance.now() - tempoInicio;
+      const progresso = Math.min(1, Math.max(0, decorrido / duracaoReal));
+      const t = 1 - Math.pow(1 - progresso, 3);
+
+      this.alvoCamera.x = inicioX + (x - inicioX) * t;
+      this.alvoCamera.z = inicioZ + (z - inicioZ) * t;
+      this.distanciaCamera = inicioDistancia + (distancia - inicioDistancia) * t;
+      this.atualizarPosicaoCamera();
+
+      if (progresso >= 1) {
+        if (this.intervaloVooId !== null) {
+          window.clearInterval(this.intervaloVooId);
+          this.intervaloVooId = null;
+        }
+        this.animacaoVoo = null;
+        aoConcluir?.();
+      }
+    }, 16);
+  }
+
+  public centralizarEm(x: number, z: number): void {
+    this.alvoCamera.x = x;
+    this.alvoCamera.z = z;
+    this.atualizarPosicaoCamera();
+  }
+
+  public obterEstadoCamera(): {
+    alvo: { x: number; z: number };
+    posicao: { x: number; y: number; z: number };
+    distancia: number;
+  } {
+    return {
+      alvo: { x: this.alvoCamera.x, z: this.alvoCamera.z },
+      posicao: {
+        x: this.camera.position.x,
+        y: this.camera.position.y,
+        z: this.camera.position.z,
+      },
+      distancia: this.distanciaCamera,
+    };
   }
 
   private atualizarPosicaoCamera(): void {
@@ -590,6 +756,31 @@ export class MapView {
       }
       this.ultimoQuadro = tempo;
 
+      // Atualiza animação suave de voo da câmera
+      if (this.animacaoVoo) {
+        const decorrido = tempo - this.animacaoVoo.tempoInicio;
+        const progresso = Math.min(1, Math.max(0, decorrido / this.animacaoVoo.duracaoMs));
+        const t = 1 - Math.pow(1 - progresso, 3); // Ease out cubic
+
+        this.alvoCamera.x =
+          this.animacaoVoo.inicioX +
+          (this.animacaoVoo.destinoX - this.animacaoVoo.inicioX) * t;
+        this.alvoCamera.z =
+          this.animacaoVoo.inicioZ +
+          (this.animacaoVoo.destinoZ - this.animacaoVoo.inicioZ) * t;
+        this.distanciaCamera =
+          this.animacaoVoo.inicioDistancia +
+          (this.animacaoVoo.destinoDistancia - this.animacaoVoo.inicioDistancia) * t;
+
+        this.atualizarPosicaoCamera();
+
+        if (progresso >= 1) {
+          const callback = this.animacaoVoo.aoConcluir;
+          this.animacaoVoo = null;
+          callback?.();
+        }
+      }
+
       const delta = this.relogio.getDelta();
       if (this.terrenoProcedural) {
         this.terrenoProcedural.update(delta, { camera: this.camera });
@@ -642,6 +833,10 @@ export class MapView {
 
   public destruir(): void {
     this.destruido = true;
+    if (this.intervaloVooId !== null) {
+      window.clearInterval(this.intervaloVooId);
+      this.intervaloVooId = null;
+    }
     if (this.quadroAnimacaoId !== null) {
       window.cancelAnimationFrame(this.quadroAnimacaoId);
     }

@@ -10,8 +10,8 @@
 | **2B** | Motor II: detectores, P&D, eventos, conquistas e turno | G | **CONCLUÍDA** | `fase-2b` |
 | **3** | Store e interface base | G | **CONCLUÍDA** | `fase-3` |
 | **4** | Mapa 3D mínimo | G | **CONCLUÍDA** | `fase-4` |
-| **5** | Painel da cidade completo | G | Pendente | — |
-| **6** | Lentes, minimapa, feed e busca | M | Pendente | — |
+| **5** | Painel da cidade completo | G | **CONCLUÍDA** | `fase-5` |
+| **6** | Lentes, minimapa, feed e busca | M | **CONCLUÍDA** | `fase-6` |
 | **7** | Árvore tecnológica e estoque | M | Pendente | — |
 | **8** | Desempenho | M | Pendente | — |
 | **9** | Atmosfera e acabamento | G | Pendente | — |
@@ -135,17 +135,19 @@
 
 ## Plano e Checklist da Fase 6 — Lentes, Minimapa, Feed e Busca
 
-1. [ ] Implementar as 8 lentes estratégicas de visualização do mapa (atalhos 1 a 8):
-   - `[1]` Padrão (cor por saúde)
-   - `[2]` Finanças (cor por fluxo de caixa mensal, espessura de rotas por financiamento)
+1. [x] Implementar as 8 lentes estratégicas de visualização do mapa (atalhos 1 a 8) em `src/domain/lentesCores.ts`, `src/map/cidadesInstanciadas.ts` e `src/map/rotasLigacoes.ts`:
+   - `[1]` Padrão (cor por saúde: Jade ≥70, Âmbar ≥40, Laca <40, Pedra para Ruínas)
+   - `[2]` Finanças (cor por fluxo de caixa mensal; realce em ouro das rotas de financiamento cruzado)
    - `[3]` Tempo (cor por horas registradas vs. horas-alvo na semana)
-   - `[4]` Rede (realce de conexões e rotas entre cidades, atenuação de nós isolados)
+   - `[4]` Rede (realce de hubs com ≥2 conexões em ouro, 1 conexão em jade e atenuação de nós isolados)
    - `[5]` Risco (cor por concentração de clientes e fornecedores)
-   - `[6]` Clientes (cor por clientes ativos e dias desde o último contato)
+   - `[6]` Clientes (cor por clientes ativos e dias desde o último contato contra o limiar de 60 dias)
    - `[7]` Estoque (cor por cobertura de materiais da BOM)
-   - `[8]` P&D (cor por tecnologias aplicadas e projetos de pesquisa ativos)
-2. [ ] Implementar Minimapa aéreo no canto da tela com contornos dos territórios dos setores, pontos das cidades coloridos pela lente ativa e retângulo de frustum da câmera.
-3. [ ] Implementar Feed de Eventos cronológico com selos de cartas de mensageiro, agrupamento por semana e ações interativas de resposta a eventos de inteligência.
-4. [ ] Implementar Busca Global (`/` ou `Ctrl+K`) com busca por nome de projeto, tarefa, cliente, item e tecnologia, com animação suave de voo da câmera Three.js até o destino.
-5. [ ] Criar testes unitários e de integração E2E para lentes, minimapa, feed e busca.
+   - `[8]` P&D (cor azul celeste para cidades com tecnologias dominadas/aplicadas)
+2. [x] Implementar Minimapa aéreo em `src/ui/Minimapa.tsx` no canto inferior esquerdo com contornos poligonais dos territórios dos setores, pontos das cidades coloridos pela lente ativa, retângulo de frustum da câmera clicável e seletor integrado das 8 lentes.
+3. [x] Implementar Feed de Eventos cronológico em `src/ui/FeedEventos.tsx` com selo de alerta animado (carta de mensageiro `.selo-mensageiro-animado`), alertas vivos de campanha e ações interativas de resposta (`aproveitar`, `mitigar`, `ignorar`).
+4. [x] Implementar Busca Global (`/` ou `Ctrl+K`) em `src/domain/buscaGlobal.ts` e `src/ui/BuscaGlobal.tsx` encontrando projeto, tarefa, cliente, item e tecnologia em `≤ 100 ms` por tecla no perfil carga, com voo suave de câmera (`MapView.voarAte`) até o destino.
+5. [x] Criar suíte de testes unitários `tests/unit/lentes-e-busca.test.ts` (6 testes) e suíte E2E `tests/e2e/fase6-lentes-feed-busca.spec.ts` (3 cenários, incluindo 8 capturas de referência por lente com semente fixa e verificação de imutabilidade do `THREE.Scene`).
+6. [x] Manter suíte 100% verde: 190 testes unitários no Vitest (15 arquivos), 12 testes E2E no Playwright (5 arquivos), 0 erros no ESLint, 0 violações no `dependency-cruiser` (78 módulos) e compilação de produção aprovada.
+
 

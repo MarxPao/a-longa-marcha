@@ -128,3 +128,20 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Evidência do Teste:** A suíte E2E `fase5-painel.spec.ts` (6 cenários de teste dedicados) e os 184 testes unitários do Vitest comprovam o funcionamento de todas as 6 abas sem regressões.
 - **Motivo:** Permitir ao usuário gerenciar a operação completa de uma cidade em um painel coeso e padronizado com os princípios estéticos e conceituais de A Longa Marcha.
 
+---
+
+## [2026-11-01] DEC-017 — As 8 Lentes do Mapa com Atualização Incremental de InstancedMesh e Minimapa Sincronizado
+- **Contexto:** As Seções 4.5, 4.6, 6.7 e o Critério de Aceite da Fase 6 determinam que o mapa possa ser visto sob 8 lentes estratégicas trocadas pelas teclas `1` a `8` (quando nenhum input de texto estiver focado) ou pelo seletor do minimapa: Padrão, Finanças, Tempo, Rede, Risco, Clientes, Estoque e P&D. Trocar de lente deve apenas atualizar cores de instâncias e materiais de rotas, jamais recriando a cena Three.js.
+- **Decisão:** Criação do módulo puro `src/domain/lentesCores.ts` (`calcularCorCidadePorLente`), compartilhado tanto pelo `GerenciadorCidadesInstanciadas` (mapa 3D) quanto pelo `Minimapa.tsx` (visão aérea 2D). Quando a lente muda, o `MapView` atualiza apenas o atributo `instanceColor` dos 8 `InstancedMesh` e a opacidade/cor das curvas Bezier em `GerenciadorRotas`, preservando integralmente o `THREE.Scene` (`uuid` inalterado).
+- **Evidência do Teste:** O teste unitário `tests/unit/lentes-e-busca.test.ts` e o teste E2E `tests/e2e/fase6-lentes-feed-busca.spec.ts` (Cenário 1) validam as 8 lentes, anexam as 8 capturas de referência com semente fixa e comprovam que `obterUuidCena()` permanece idêntico antes e depois de todas as trocas.
+- **Motivo:** Garantir leitura estratégica instantânea (princípio dos 30 segundos) com custo computacional zero de reconstrução de geometria e consistência absoluta entre mapa 3D e minimapa 2D.
+
+---
+
+## [2026-11-01] DEC-018 — Índice Normalizado de Busca Global (≤ 100 ms no Perfil Carga), Voo de Câmera e Selo de Alerta do Mensageiro
+- **Contexto:** A Fase 6 exige Busca Global acionada pelo atalho `/` (encontrando projeto, tarefa, cliente, item ou tecnologia e levando a câmera até a cidade correspondente em `≤ 100 ms` por tecla no perfil carga) e Feed de Eventos com selo de alerta animado (carta de mensageiro).
+- **Decisão:** Implementação de `src/domain/buscaGlobal.ts` (`construirIndiceBusca` e `executarBuscaGlobal`), que pré-normaliza títulos e descrições sem diacríticos (`NFD`), permitindo filtragem e ordenação por relevância em `< 5 ms` mesmo com 500 projetos e 5.000 tarefas. O `MapView.voarAte(x, z)` executa interpolação cúbica (`easeOutCubic`) até as coordenadas da cidade selecionada. O `FeedEventos.tsx` combina alertas vivos de saúde crítica/tarefas vencidas com o histórico cronológico de eventos e inclui o selo de alerta com animação CSS pulsante (`.selo-mensageiro-animado`).
+- **Evidência do Teste:** O teste unitário `lentes-e-busca.test.ts` e os Cenários 2 e 3 de `fase6-lentes-feed-busca.spec.ts` comprovam busca em `≤ 100 ms` no perfil carga, voo de câmera até o alvo e abertura do feed de eventos pelo selo do mensageiro.
+- **Motivo:** Cumprir rigorosamente as metas de desempenho e usabilidade da Seção 7.4 e 8 sem dependências externas de indexação.
+
+

@@ -7,6 +7,7 @@ import {
   type Config,
   type Data,
   type DumpBanco,
+  type LenteMapa,
   type UUID,
 } from '../domain';
 import {
@@ -52,6 +53,7 @@ export type TipoModal =
   | 'editorRegistros'
   | 'capturaRapida'
   | 'criarProjeto'
+  | 'buscaGlobal'
   | null;
 
 export type TipoCapturaRapida = 'horas' | 'tarefa' | 'lancamento' | 'evento' | null;
@@ -71,6 +73,7 @@ export interface EstadoCampanha {
   modalAberto: TipoModal;
   tipoCapturaRapida: TipoCapturaRapida;
   vistaAtiva: 'mapa' | 'lista';
+  lenteAtiva: LenteMapa;
   filtroLista: FiltroListaProjetos;
   ultimoProjetoIdUsado: UUID | null;
   resumoFechamentoRecente: ResultadoFechamentoTurno | null;
@@ -113,6 +116,7 @@ export interface EstadoCampanha {
   abrirModal: (modal: TipoModal, tipoCaptura?: TipoCapturaRapida) => void;
   fecharModal: () => void;
   alternarVista: (vista: 'mapa' | 'lista') => void;
+  definirLenteAtiva: (lente: LenteMapa) => void;
   definirFiltroLista: (parcial: Partial<FiltroListaProjetos>) => void;
   limparNotificacao: () => void;
 }
@@ -151,6 +155,7 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
   modalAberto: null,
   tipoCapturaRapida: null,
   vistaAtiva: 'mapa',
+  lenteAtiva: 'padrao',
   filtroLista: {
     setorId: null,
     busca: '',
@@ -778,6 +783,10 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
 
   alternarVista: (vista) => {
     set({ vistaAtiva: vista });
+  },
+
+  definirLenteAtiva: (lente) => {
+    set({ lenteAtiva: lente });
   },
 
   definirFiltroLista: (parcial) => {
