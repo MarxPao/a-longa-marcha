@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useCampanhaStore } from '../store';
 import { textosPtBr } from '../textos/pt-BR';
 import { formatarData, formatarHoras, formatarMoeda } from './formatadores';
 
 export function BarraSuperior(): React.JSX.Element {
+  const [escalaFonte, setEscalaFonte] = useState<number>(100);
   const derivadosGlobais = useCampanhaStore((s) => s.derivadosGlobais);
   const semanaAtual = useCampanhaStore((s) => s.semanaAtual);
   const dump = useCampanhaStore((s) => s.dump);
@@ -142,9 +143,36 @@ export function BarraSuperior(): React.JSX.Element {
           data-testid="botao-configuracoes"
           onClick={() => abrirModal('editorRegistros')}
           title="Configurações e Registros da Campanha"
+          aria-label="Configurações da Campanha"
         >
           ⚙️
         </button>
+
+        {/* Seletor de tamanho de fonte (90% a 130%) conforme Seção 6.8 */}
+        <select
+          data-testid="select-tamanho-fonte"
+          aria-label="Tamanho da fonte da interface"
+          className="input-texto"
+          value={escalaFonte}
+          onChange={(e) => {
+            const val = Number(e.target.value) || 100;
+            setEscalaFonte(val);
+            document.documentElement.style.fontSize = `${val}%`;
+          }}
+          style={{
+            padding: '0.2rem 0.35rem',
+            fontSize: '0.72rem',
+            width: 68,
+            cursor: 'pointer',
+          }}
+          title="Ajustar tamanho da fonte (90% a 130%)"
+        >
+          <option value={90}>90%</option>
+          <option value={100}>100%</option>
+          <option value={110}>110%</option>
+          <option value={120}>120%</option>
+          <option value={130}>130%</option>
+        </select>
 
         <button
           type="button"

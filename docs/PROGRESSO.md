@@ -14,7 +14,7 @@
 | **6** | Lentes, minimapa, feed e busca | M | **CONCLUÍDA** | `fase-6` |
 | **7** | Árvore tecnológica e estoque | M | **CONCLUÍDA** | `fase-7` |
 | **8** | Desempenho | M | **CONCLUÍDA** | `fase-8` |
-| **9** | Atmosfera e acabamento | G | Pendente | — |
+| **9** | Atmosfera e acabamento | G | **CONCLUÍDA** | `fase-9` |
 | **10** | Endurecimento e entrega | P | Pendente | — |
 
 ---
@@ -174,6 +174,20 @@
 7. [x] Documentar relatório completo de gargalos e medições em `docs/RELATORIO_DESEMPENHO_FASE8.md`.
 8. [x] Criar suíte de testes unitários de desempenho `tests/unit/desempenho-fase8.test.ts` (6 testes) e suíte E2E `tests/e2e/fase8-desempenho.spec.ts` comprovando todas as 8 metas da Tabela 7.4.
 9. [x] Manter suíte 100% verde: 196 testes unitários no Vitest (16 arquivos), 15 testes E2E no Playwright (7 arquivos), 0 erros no ESLint, 0 violações no `dependency-cruiser` (83 módulos) e compilação de produção aprovada.
+
+---
+
+## Plano e Checklist da Fase 9 — Atmosfera e Acabamento
+
+1. [x] Implementar `src/map/atmosferaTerreno.ts` (`GerenciadorAtmosferaMapa`) com leitos de rios sinuosos que seguem os vales por semente (`TubeGeometry`), costa de areia no heightmap (`#DEC99A`), névoa de guerra em tinta aguada cobrindo áreas sem cidade ativa, névoa de moral baixa (`< 45%`) e partículas douradas de crescimento (`THREE.Points`).
+2. [x] Implementar camada de foco de maquete nas bordas (`camada-tilt-shift`) em `src/app/App.tsx`.
+3. [x] Implementar redundância tridimensional por forma de saúde em `src/map/cidadesInstanciadas.ts` (`malhaBandeirasErguidas`, `malhaBandeirasCaidas` e `malhaFumacaCritica`) para que a cor nunca carregue sozinha a informação de saúde.
+4. [x] Criar biblioteca de ícones SVG originais `src/ui/IconesSetoresSvg.tsx` cobrindo os 9 símbolos da Tabela 4.2 e `IconeFormaSaudeSvg`, integrando-os ao `PainelProjeto.tsx`.
+5. [x] Implementar ganchos de som silenciosos prontos no código em `src/ui/ganchosSom.ts` conforme Seção 9.1.
+6. [x] Implementar recursos de acessibilidade da Seção 6.8: ajuste dinâmico de tamanho de fonte de `90%` a `130%` (`select-tamanho-fonte` em `BarraSuperior.tsx`) e respeito à preferência por reduzir movimento (`prefers-reduced-motion` + `definirReduzirMovimento` desligando partículas e animações).
+7. [x] Atualizar `docs/ASSETS.md` registrando todos os modelos procedurais, ícones SVG originais, fontes OFL e ausência total de assets da Creative Assembly.
+8. [x] Criar suíte E2E `tests/e2e/fase9-atmosfera-acessibilidade.spec.ts` comprovando atmosfera, formas de saúde, ícones SVG e acessibilidade.
+
 
 
 

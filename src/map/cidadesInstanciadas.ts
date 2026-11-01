@@ -37,6 +37,11 @@ export class GerenciadorCidadesInstanciadas {
   private malhaLuzesPd: THREE.InstancedMesh | null = null;
   private capacidadeLuzesPd = 64;
 
+  // Redundância por forma para estado de saúde (Seções 4.4 e 6.8: bandeira erguida, caída ou fumaça)
+  private malhaBandeirasErguidas: THREE.InstancedMesh | null = null;
+  private malhaBandeirasCaidas: THREE.InstancedMesh | null = null;
+  private malhaFumacaCritica: THREE.InstancedMesh | null = null;
+
   constructor(cena: THREE.Scene) {
     this.cena = cena;
     this.geometrias = construirGeometriasCidades();
@@ -50,6 +55,7 @@ export class GerenciadorCidadesInstanciadas {
     this.inicializarMalhas();
     this.criarIndicadorSelecao();
     this.criarMalhaLuzesPd(this.capacidadeLuzesPd);
+    this.criarMalhasFormasSaude(512);
   }
 
   private inicializarMalhas(): void {
@@ -110,6 +116,55 @@ export class GerenciadorCidadesInstanciadas {
     this.malhaLuzesPd.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.cena.add(this.malhaLuzesPd);
     this.capacidadeLuzesPd = capacidade;
+  }
+
+  private criarMalhasFormasSaude(capacidade: number): void {
+    // 1. Bandeira Erguida (Saudável >= 70)
+    const geoErguida = new THREE.ConeGeometry(0.42, 1.35, 4);
+    geoErguida.translate(0, 3.3, 0);
+    const matErguida = new THREE.MeshBasicMaterial({ color: '#3E7C68' });
+    this.malhaBandeirasErguidas = new THREE.InstancedMesh(
+      geoErguida,
+      matErguida,
+      capacidade
+    );
+    this.malhaBandeirasErguidas.name = 'forma-saude-bandeira-erguida';
+    this.malhaBandeirasErguidas.count = 0;
+    this.malhaBandeirasErguidas.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.cena.add(this.malhaBandeirasErguidas);
+
+    // 2. Bandeira Caída / Inclinada (Atenção 40..69)
+    const geoCaida = new THREE.ConeGeometry(0.42, 1.25, 4);
+    geoCaida.rotateZ(Math.PI * 0.35);
+    geoCaida.translate(0.5, 2.7, 0);
+    const matCaida = new THREE.MeshBasicMaterial({ color: '#D09B2C' });
+    this.malhaBandeirasCaidas = new THREE.InstancedMesh(
+      geoCaida,
+      matCaida,
+      capacidade
+    );
+    this.malhaBandeirasCaidas.name = 'forma-saude-bandeira-caida';
+    this.malhaBandeirasCaidas.count = 0;
+    this.malhaBandeirasCaidas.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.cena.add(this.malhaBandeirasCaidas);
+
+    // 3. Coluna de Fumaça / Alerta Crítico (< 40)
+    const geoFumaca = new THREE.OctahedronGeometry(0.68, 0);
+    geoFumaca.translate(0, 3.6, 0);
+    const matFumaca = new THREE.MeshBasicMaterial({
+      color: '#8E1F1A',
+      transparent: true,
+      opacity: 0.9,
+    });
+    this.malhaFumacaCritica = new THREE.InstancedMesh(
+      geoFumaca,
+      matFumaca,
+      capacidade
+    );
+    this.malhaFumacaCritica.name = 'forma-saude-fumaca-critica';
+    this.malhaFumacaCritica.count = 0;
+    this.malhaFumacaCritica.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.cena.add(this.malhaFumacaCritica);
   }
 
   private garantirCapacidade(nivel: NivelMaturidadeVisual, quantidadeNecessaria: number): void {
@@ -304,6 +359,53 @@ export class GerenciadorCidadesInstanciadas {
       }
       this.malhaLuzesPd.instanceMatrix.needsUpdate = true;
     }
+
+    // Atualiza formas redundantes de saúde (Seções 4.4 e 6.8: cor nunca sozinha)
+    if (
+      this.malhaBandeirasErguidas &&
+      this.malhaBandeirasCaidas &&
+      this.malhaFumacaCritica
+    ) {
+      let cErguida = 0;
+      let cCaida = 0;
+      let cFumaca = 0;
+      const matForma = new THREE.Matrix4();
+
+      for (const p of projetos) {
+        if (p.arquivadoEm !== null) continue;
+        const saude = derivados.get(p.id)?.saude.pontuacao ?? 100;
+        const y = obterAlturaTerreno(p.x, p.z);
+        matForma.makeTranslation(p.x, y, p.z);
+
+        if (saude >= 70 && cErguida < 512) {
+          this.malhaBandeirasErguidas.setMatrixAt(cErguida++, matForma);
+        } else if (saude >= 40 && cCaida < 512) {
+          this.malhaBandeirasCaidas.setMatrixAt(cCaida++, matForma);
+        } else if (saude < 40 && cFumaca < 512) {
+          this.malhaFumacaCritica.setMatrixAt(cFumaca++, matForma);
+        }
+      }
+
+      this.malhaBandeirasErguidas.count = cErguida;
+      this.malhaBandeirasCaidas.count = cCaida;
+      this.malhaFumacaCritica.count = cFumaca;
+
+      this.malhaBandeirasErguidas.instanceMatrix.needsUpdate = true;
+      this.malhaBandeirasCaidas.instanceMatrix.needsUpdate = true;
+      this.malhaFumacaCritica.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  public obterContagemFormasSaude(): {
+    bandeirasErguidas: number;
+    bandeirasCaidas: number;
+    fumacaCritica: number;
+  } {
+    return {
+      bandeirasErguidas: this.malhaBandeirasErguidas?.count ?? 0,
+      bandeirasCaidas: this.malhaBandeirasCaidas?.count ?? 0,
+      fumacaCritica: this.malhaFumacaCritica?.count ?? 0,
+    };
   }
 
   public obterTotalLuzesPdAtivas(): number {
@@ -340,6 +442,18 @@ export class GerenciadorCidadesInstanciadas {
       this.malhaLuzesPd.geometry.dispose();
       (this.malhaLuzesPd.material as THREE.Material).dispose();
       this.malhaLuzesPd = null;
+    }
+
+    for (const malhaForma of [
+      this.malhaBandeirasErguidas,
+      this.malhaBandeirasCaidas,
+      this.malhaFumacaCritica,
+    ]) {
+      if (malhaForma) {
+        this.cena.remove(malhaForma);
+        malhaForma.geometry.dispose();
+        (malhaForma.material as THREE.Material).dispose();
+      }
     }
 
     for (const geo of Object.values(this.geometrias)) {

@@ -6,6 +6,7 @@ import {
   obterInfoFase,
   obterInfoSaude,
 } from './formatadores';
+import { IconeFormaSaudeSvg, IconeSetorSvg } from './IconesSetoresSvg';
 import { AbaClientes } from './painel/AbaClientes';
 import { AbaEstoque } from './painel/AbaEstoque';
 import { AbaFinancas } from './painel/AbaFinancas';
@@ -102,6 +103,11 @@ export function PainelProjeto(): React.JSX.Element | null {
                 backgroundColor: setor?.cor ?? '#888',
               }}
             />
+            <IconeSetorSvg
+              iconeOuNome={setor?.icone || setor?.nome || 'comercio'}
+              cor={setor?.cor ?? '#7A5A2B'}
+              tamanho={14}
+            />
             <span>{setor?.nome ?? 'Sem Setor'}</span>
             <span>·</span>
             <span>{projeto.autonomia}</span>
@@ -153,7 +159,9 @@ export function PainelProjeto(): React.JSX.Element | null {
             }`}
             data-testid="badge-saude-valor"
             title={`${infoSaude.forma} (${infoSaude.texto})`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
           >
+            <IconeFormaSaudeSvg pontuacao={saude} tamanho={14} />
             {infoSaude.icone} {saude} ({infoSaude.texto})
           </span>
         </div>

@@ -20,6 +20,7 @@ import {
   gerarHashSemente,
   type DerivadosProjeto,
 } from '../engine';
+import { GerenciadorAtmosferaMapa } from './atmosferaTerreno';
 import { GerenciadorCidadesInstanciadas } from './cidadesInstanciadas';
 import { GradeEspacial } from './gradeEspacial';
 import { type DadosContextoLente, type InfoResumoDerivadoLente } from './lentesCores';
@@ -94,6 +95,7 @@ export class MapView {
   private territorios: GerenciadorTerritorios;
   private rotas: GerenciadorRotas;
   private vegetacaoLod: GerenciadorVegetacaoLOD;
+  private atmosfera: GerenciadorAtmosferaMapa;
 
   // Cache de dados do mapa e controle de qualidade/LOD
   private projetosPorId: Map<UUID, Projeto> = new Map();
@@ -177,7 +179,12 @@ export class MapView {
     this.territorios = new GerenciadorTerritorios(this.cena);
     this.rotas = new GerenciadorRotas(this.cena);
     this.vegetacaoLod = new GerenciadorVegetacaoLOD(this.cena);
+    this.atmosfera = new GerenciadorAtmosferaMapa(this.cena);
     this.vegetacaoLod.gerarVegetacaoPorSemente(
+      opcoes.sementeInicial,
+      this.obterAlturaTerreno
+    );
+    this.atmosfera.gerarRiosPorSemente(
       opcoes.sementeInicial,
       this.obterAlturaTerreno
     );
@@ -266,6 +273,7 @@ export class MapView {
     this.sementeAtual = semente;
     this.aplicarHeightmapNaMalha(semente);
     this.vegetacaoLod?.gerarVegetacaoPorSemente(semente, this.obterAlturaTerreno);
+    this.atmosfera?.gerarRiosPorSemente(semente, this.obterAlturaTerreno);
     this.vegetacaoLod?.atualizarLodPorDistancia(
       this.camera.position,
       this.distanciaCamera,
@@ -334,6 +342,9 @@ export class MapView {
 
       if (amostra.biomaVisual === 'agua') {
         corTemp.set('#3E7C68');
+      } else if (vy >= -1.15 && vy <= 0.35) {
+        // Costa de areia (Seção 4.7: mar com costa de areia)
+        corTemp.set('#DEC99A');
       } else if (amostra.biomaVisual === 'vale_rio') {
         corTemp.set('#7FA35A');
       } else if (amostra.biomaVisual === 'colina_karst') {
@@ -470,6 +481,19 @@ export class MapView {
       this.distanciaCamera,
       this.qualidadeEfetiva
     );
+
+    const moralMap = new Map<string, number>();
+    const faseMap = new Map<string, number>();
+    for (const [id, d] of dados.derivadosPorProjeto.entries()) {
+      moralMap.set(id, d.moral.moral);
+      faseMap.set(id, d.fase.fase);
+    }
+    this.atmosfera.atualizarEstadoAtmosfera(
+      dados.projetos.filter((p) => p.arquivadoEm === null),
+      moralMap,
+      faseMap,
+      this.obterAlturaTerreno
+    );
   }
 
   public definirQualidadeGrafica(
@@ -545,6 +569,22 @@ export class MapView {
 
   public obterTotalLuzesPdAtivas(): number {
     return this.cidadesInstanciadas.obterTotalLuzesPdAtivas();
+  }
+
+  public obterContagemFormasSaude(): ReturnType<
+    GerenciadorCidadesInstanciadas['obterContagemFormasSaude']
+  > {
+    return this.cidadesInstanciadas.obterContagemFormasSaude();
+  }
+
+  public obterEstadoAtmosfera(): ReturnType<
+    GerenciadorAtmosferaMapa['obterEstadoAtmosfera']
+  > {
+    return this.atmosfera.obterEstadoAtmosfera();
+  }
+
+  public definirReduzirMovimento(reduzir: boolean): void {
+    this.atmosfera.definirReduzirMovimento(reduzir);
   }
 
   /**
@@ -879,6 +919,7 @@ export class MapView {
       }
 
       const delta = this.relogio.getDelta();
+      this.atmosfera.animarQuadro(delta);
       if (this.terrenoProcedural && this.qualidadeEfetiva === 'alta') {
         this.terrenoProcedural.update(delta, { camera: this.camera });
       }
@@ -920,6 +961,7 @@ export class MapView {
       }
 
       const delta = this.relogio.getDelta();
+      this.atmosfera.animarQuadro(delta);
       if (this.terrenoProcedural && this.qualidadeEfetiva === 'alta') {
         this.terrenoProcedural.update(delta, { camera: this.camera });
       }
@@ -988,6 +1030,7 @@ export class MapView {
     this.territorios.destruir();
     this.rotas.destruir();
     this.vegetacaoLod.destruir();
+    this.atmosfera.destruir();
 
     this.terrenoProcedural?.dispose();
     this.malhaTerreno?.geometry.dispose();

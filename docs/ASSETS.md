@@ -10,6 +10,7 @@
 | Item | Origem / Repositório | Versão | Licença | Uso no Projeto |
 | :--- | :--- | :---: | :---: | :--- |
 | `procedural-terrains` (`ProceduralTerrains`) | `https://github.com/ZyFou/ProceduralTerrains` | `2.0.5` | **MIT** | Geração procedural de terreno 3D (`createTerrain`, `FiniteTerrain`, amostragem de altura e shaders de relevo karst/vales) em `src/map/MapView.ts`. |
+| `three` (`Three.js`) | `https://github.com/mrdoob/three.js` | `^0.181.0` | **MIT** | Renderização WebGL, `InstancedMesh`, `LineSegments`, `TubeGeometry`, iluminação e pós-processamento atmosférico. |
 
 ### Aviso de Copyright Obrigatório (`ProceduralTerrains` — MIT License)
 
@@ -39,7 +40,24 @@ SOFTWARE.
 
 ---
 
-## 2. Tipografia e Ícones (Fase 0)
+## 2. Modelos 3D Procedurais Originais (Zero Assets Externos Proprietários)
 
-- Na Fase 0 são utilizadas pilhas tipográficas locais do sistema com reserva para empacotamento local das fontes `Noto Serif SC` (SIL Open Font License 1.1) e `Inter` (SIL Open Font License 1.1) na Fase 3 (Seção 4.1 e Prompt Mestre C.3 — Fase 3), garantindo zero requisições a CDNs externos.
-- **Verificação Creative Assembly:** `0` arquivos proprietários ou derivados de jogos comerciais.
+| Conjunto 3D | Arquivo no Repositório | Autor / Origem | Licença | Descrição |
+| :--- | :--- | :--- | :---: | :--- |
+| **Cidades por Maturidade (Níveis 1 a 7 + Ruínas)** | `src/map/cidadesGeometria.ts` | Autoria original (`A Longa Marcha`) | **MIT / Uso Privado** | Geometrias procedurais mescladas (`mergeGeometries`): Faísca (tendas/fogueira), Expedição (paliçada/torre), Assentamento, Vila (pagode), Cidade (muralha/portão), Metrópole, Legado e Ruínas. |
+| **Florestas Instanciadas com LOD (Pinheiros Imperiais)** | `src/map/vegetacaoLod.ts` | Autoria original (`A Longa Marcha`) | **MIT / Uso Privado** | Malhas procedurais de pinheiros em 2 níveis de detalhe (`lod0_alta` e `lod1_media`) com descarte por distância (`lod2_oculto`). |
+| **Rios Sinuosos, Névoa de Guerra e Partículas de Crescimento** | `src/map/atmosferaTerreno.ts` | Autoria original (`A Longa Marcha`) | **MIT / Uso Privado** | Leitos de rios em `TubeGeometry`, discos de tinta aguada para névoa de guerra, anéis de névoa de moral baixa e partículas douradas em `THREE.Points`. |
+| **Formas Redundantes de Saúde e Halos P&D** | `src/map/cidadesInstanciadas.ts` | Autoria original (`A Longa Marcha`) | **MIT / Uso Privado** | Bandeira erguida (saudável), bandeira inclinada (atenção), coluna de fumaça (crítico) e halo azul celeste de P&D. |
+
+---
+
+## 3. Tipografia, Ícones SVG e Áudio
+
+| Item | Arquivo / Fonte | Licença | Observações |
+| :--- | :--- | :---: | :--- |
+| **Ícones SVG dos 9 Setores e Formas de Saúde** | `src/ui/IconesSetoresSvg.tsx` | **MIT / Uso Privado** | Vetores SVG originais desenhados em código para Agricultura, Alimentícia, Bebidas, Química, Automação, Robótica, Software Educacional, Software Profissional, Comércio e redundância de saúde. |
+| **Gráficos Financeiros e Fios Dourados da Árvore** | `src/ui/painel/GraficoFinancasSvg.tsx`, `src/ui/TelaArvoreTecnologica.tsx` | **MIT / Uso Privado** | Renderização vetorial nativa em SVG puro sem bibliotecas fechadas. |
+| **Tipografia (`Noto Serif SC` & `Inter`)** | `src/ui/styles.css` | **SIL Open Font License 1.1 (OFL)** | Pilha tipográfica local com `font-variant-numeric: tabular-nums` para tabelas e valores financeiros. |
+| **Ganchos de Som (`v1`)** | `src/ui/ganchosSom.ts` | **MIT / Uso Privado** | Ganchos silenciosos prontos no código conforme Seção 9.1 (nenhum arquivo de áudio de terceiros). |
+
+- **Verificação Final Creative Assembly:** `0` arquivos proprietários, texturas, ícones, fontes ou modelos extraídos de jogos comerciais.

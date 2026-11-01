@@ -168,6 +168,19 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Evidência do Teste:** Comprovado em `tests/unit/desempenho-fase8.test.ts` (importação de 8,49 MB em `1,44 s`, pacote inicial em `450,01 KB` gzip, recálculo incremental em `< 1 ms`) e `tests/e2e/fase8-desempenho.spec.ts` (virtualização ativa e memória estável).
 - **Motivo:** Atender com folga todas as 8 metas quantitativas da Tabela 7.4.
 
+## [2026-11-01] DEC-023 — Atmosfera do Terreno (Rios Sinuosos, Costa de Areia, Névoa de Guerra em Tinta Aguada, Tilt-Shift e Partículas)
+- **Contexto:** A Fase 9 (Seções 4.4 e 4.7) exige terreno com rios que seguem os vales, mar com costa de areia, névoa de guerra cobrindo áreas sem projeto ativo, efeito de tilt-shift nas bordas, névoa de moral baixa e partículas douradas de crescimento.
+- **Decisão:** Criação de `src/map/atmosferaTerreno.ts` (`GerenciadorAtmosferaMapa`), que traça rios em `THREE.TubeGeometry` seguindo as cotas mínimas dos vales por semente, renderiza a névoa de guerra em `THREE.InstancedMesh` nas células distantes (> 48 unidades) de cidades ativas, aplica anéis de névoa sobre cidades com moral < 45% e partículas douradas em `THREE.Points` para cidades em crescimento, além de transição costeira de areia (`#DEC99A`) no heightmap e camada `camada-tilt-shift` sobre o viewport.
+- **Evidência do Teste:** Comprovado em `tests/e2e/fase9-atmosfera-acessibilidade.spec.ts` (`riosRenderizados >= 2`, `celulasNevoaGuerraAtivas > 0` e `camada-tilt-shift` visível).
+- **Motivo:** Entregar a identidade visual de maquete estratégica inspirada na pintura de paisagem chinesa (shan shui) sem comprometer os 60 fps.
+
+## [2026-11-01] DEC-024 — Redundância por Forma de Saúde (3D + SVG), Ícones Originais dos 9 Setores e Acessibilidade (Fonte 90%–130% e Reduzir Movimento)
+- **Contexto:** As Seções 4.2, 4.4 e 6.8 exigem que a cor nunca carregue sozinha a informação de saúde (bandeira erguida, caída ou fumaça), ícones SVG originais para os 9 setores, tamanho de fonte ajustável de 90% a 130% e respeito à preferência por reduzir movimento.
+- **Decisão:** (1) Adição de 3 malhas instanciadas de forma em `src/map/cidadesInstanciadas.ts` (`malhaBandeirasErguidas`, `malhaBandeirasCaidas`, `malhaFumacaCritica`); (2) Criação de `src/ui/IconesSetoresSvg.tsx` com os 9 símbolos vetoriais da Tabela 4.2 e `IconeFormaSaudeSvg`; (3) Seletor `select-tamanho-fonte` (`90%` a `130%`) em `BarraSuperior.tsx` e escuta de `prefers-reduced-motion: reduce` + `definirReduzirMovimento` em `App.tsx`; (4) Ganchos sonoros silenciosos em `src/ui/ganchosSom.ts` e inventário completo de licenças em `docs/ASSETS.md`.
+- **Evidência do Teste:** Comprovado em `tests/e2e/fase9-atmosfera-acessibilidade.spec.ts`.
+- **Motivo:** Garantir acessibilidade para daltonismo vermelho-verde (jade/laca), baixa visão e sensibilidade a movimento, mantendo 0 assets de terceiros não licenciados.
+
+
 
 
 

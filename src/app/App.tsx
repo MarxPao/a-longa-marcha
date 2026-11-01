@@ -227,6 +227,24 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [abrirModal, fecharModal, selecionarProjeto, desfazer, definirLenteAtiva]);
 
+  // Respeito à preferência do sistema por reduzir movimento (Seção 6.8)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const aplicar = (reduzir: boolean) => {
+      mapViewRef.current?.definirReduzirMovimento(reduzir);
+      if (reduzir) {
+        document.body.classList.add('reduzir-movimento');
+      } else {
+        document.body.classList.remove('reduzir-movimento');
+      }
+    };
+    aplicar(mq.matches);
+    const handler = (ev: MediaQueryListEvent) => aplicar(ev.matches);
+    mq.addEventListener?.('change', handler);
+    return () => mq.removeEventListener?.('change', handler);
+  }, []);
+
   // Auto-limpar notificação após 4s
   useEffect(() => {
     if (!notificacao) return;
@@ -254,6 +272,22 @@ export function App(): React.JSX.Element {
             display: vistaAtiva === 'mapa' ? 'block' : 'none',
           }}
         />
+
+        {/* Efeito leve de foco nas bordas (Tilt-Shift) para sensação de maquete (Seção 4.7) */}
+        {vistaAtiva === 'mapa' && (
+          <div
+            data-testid="camada-tilt-shift"
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              pointerEvents: 'none',
+              zIndex: 2,
+              background:
+                'linear-gradient(to bottom, rgba(24,20,15,0.26) 0%, rgba(24,20,15,0) 14%, rgba(24,20,15,0) 84%, rgba(24,20,15,0.32) 100%), radial-gradient(circle at center, transparent 62%, rgba(24,20,15,0.2) 100%)',
+            }}
+          />
+        )}
 
         {/* Vista Alternativa em Lista (Seção 6.8) */}
         {vistaAtiva === 'lista' && (
