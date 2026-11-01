@@ -30,6 +30,7 @@ export class MapView {
   private quadroAnimacaoId: number | null = null;
   private relogio = new THREE.Clock();
   private destruido = false;
+  private ultimoQuadro = 0;
   private readonly aoAtualizarTerreno?: OpcoesMapView['aoAtualizarTerreno'];
 
   // Câmera inclinada estilo mapa estratégico de campanha (Total War: Three Kingdoms)
@@ -307,9 +308,25 @@ export class MapView {
   }
 
   private iniciarLoop(): void {
-    const animar = (): void => {
+    const animar = (tempo: number): void => {
       if (this.destruido) return;
       this.quadroAnimacaoId = window.requestAnimationFrame(animar);
+
+      // Pula renderização quando o container estiver oculto (ex: Vista Lista ativa)
+      if (
+        this.container.offsetWidth === 0 ||
+        this.container.offsetHeight === 0 ||
+        this.container.style.display === 'none'
+      ) {
+        return;
+      }
+
+      // Throttle para ~30 FPS para economizar ciclos de GPU/CPU em computadores comuns
+      if (tempo - this.ultimoQuadro < 32) {
+        return;
+      }
+      this.ultimoQuadro = tempo;
+
       const delta = this.relogio.getDelta();
       if (this.terrenoProcedural) {
         this.terrenoProcedural.update(delta, { camera: this.camera });

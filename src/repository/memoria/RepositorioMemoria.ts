@@ -18,10 +18,10 @@ export class RepositorioMemoria implements Repository {
   private preRequisitosTecnologia: PreRequisitoTecnologia[] = [];
   private meta: Meta;
 
-  constructor() {
-    const dumpVazio = criarDumpVazio();
-    this.meta = dumpVazio.meta;
-    this.carregarDeDump(dumpVazio);
+  constructor(dumpInicial?: DumpBanco) {
+    const dump = dumpInicial ? structuredClone(dumpInicial) : criarDumpVazio();
+    this.meta = dump.meta;
+    this.carregarDeDump(dump);
   }
 
   private obterTabela(nome: string): Map<UUID, Base> {
@@ -187,6 +187,6 @@ export class RepositorioMemoria implements Repository {
   }
 }
 
-export function criarRepositorioMemoria(): Repository {
-  return new RepositorioMemoria();
+export function criarRepositorioMemoria(dumpInicial?: DumpBanco): Repository {
+  return new RepositorioMemoria(dumpInicial);
 }

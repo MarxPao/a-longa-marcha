@@ -79,3 +79,19 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
   4. Suporte a execução assíncrona off-thread via Web Worker (`src/workers/fechamento.worker.ts`) com fallback transparente para Node/Vitest.
 - **Evidência do Teste:** Fechamento de turno no perfil real completado em `44.70 ms` (meta: < 100 ms) e no perfil de carga completado em `495.14 ms` (meta: ≤ 1.000 ms), com prova de idempotência estrita validada por teste de propriedades com `fast-check`.
 - **Motivo:** Cumprir os critérios de aceitação da Seção 8 e assegurar uma experiência de usuário sem engasgos ou perda de fluidez.
+
+---
+
+## [2026-10-31] DEC-011 — Barramento de Comandos Tipados, Validação Estrita por Zod e Desfazer Atômico em Zustand
+- **Contexto:** A Seção 5 e o Critério de Aceite da Fase 3 exigem um barramento de comandos desfazíveis (`Ctrl+Z`), onde nenhuma mutação ocorre por escrita arbitrária em store. Todas as alterações devem passar por validação em tempo de execução via esquemas Zod (`src/domain`), e o fechamento de turno deve suportar desfazer reanalisando instantâneos e estado prévio.
+- **Decisão:** Criação de `comandos.ts` com discriminadores estritos (`CRIAR_ENTIDADE`, `ATUALIZAR_ENTIDADE`, `ARQUIVAR_ENTIDADE`, `DESARQUIVAR_ENTIDADE`, `ATUALIZAR_CONFIG`, `FECHAR_TURNO`, `DESFAZER_TURNO`, `IMPORTAR_DUMP`). A store Zustand (`campanhaStore.ts`) mantém pilha de até 20 comandos com snapshots inversos. O recálculo pós-comando usa `projetosInvalidados()` da engine incremental, recalculando apenas os projetos afetados em tempo sub-milissegundo.
+- **Evidência do Teste:** Teste unitário `tests/unit/store-comandos.test.ts` e teste E2E `tests/e2e/fase3-interface.spec.ts` provam a validação Zod (rejeição de entidades inválidas), obrigatoriedade de notas de lições para estágio Ruínas (Caso 7.2) e desfazer funcional.
+- **Motivo:** Garantir integridade referencial dos dados, imunidade contra corrupção de estado e conformidade estrita com o Princípio 2 (estado derivado nunca é digitado).
+
+---
+
+## [2026-10-31] DEC-012 — Interface Estratégica Pergaminho/Tinta, Separação de Camadas e Otimização de Renderização por Visibilidade
+- **Contexto:** A interface segue a estética inspirada em Total War: Three Kingdoms (pergaminho `#EDE3D0`, laca `#8E1F1A`, jade `#3A6B56`, ouro `#C59B27`, tinta `#1C1814`). Todas as camadas de visualização (Barra Superior, Painel Lateral em 6 abas, Modais de Captura Rápida com atalhos H/T/L/E, Modal de Fechamento com dry-run e Editor de Registros) foram implementadas em React puro. O mapa 3D de fundo (Three.js) e as visualizações alternativas (Vista Lista e Placeholder 2D) convivem na mesma aplicação.
+- **Decisão:** A `MapView` Three.js monitora a visibilidade de seu container HTML no loop de animação: se o container estiver com `display: none` ou dimensões nulas (ex.: enquanto o usuário opera na Vista Lista), a chamada de renderização é suprimida imediatamente. Além disso, a taxa de quadros é controlada com throttle de ~30 FPS para idle/background.
+- **Evidência do Teste:** A suíte E2E do Playwright (`fase0-terreno.spec.ts` e `fase3-interface.spec.ts`) passou com tempo reduzido de 3.7m (com timeout) para 55.7s no total. O `depcruise` certificou 0 violações de camadas entre `src/store`, `src/ui`, `src/engine` e `src/domain`.
+- **Motivo:** Preservar a CPU do usuário, acelerar testes e garantir uma UI fluida e sem acoplamentos indevidos.

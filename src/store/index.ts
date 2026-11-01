@@ -92,3 +92,6 @@ export const useTerrenoFase0Store = create<EstadoTerrenoFase0>((set, get) => ({
     }));
   },
 }));
+
+export * from './comandos';
+export * from './campanhaStore';

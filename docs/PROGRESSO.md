@@ -8,7 +8,7 @@
 | **1** | Dados e persistência | M | **CONCLUÍDA** | `fase-1` |
 | **2A** | Motor I: derivados e finanças | G | **CONCLUÍDA** | `fase-2a` |
 | **2B** | Motor II: detectores, P&D, eventos, conquistas e turno | G | **CONCLUÍDA** | `fase-2b` |
-| **3** | Store e interface base | G | Pendente | — |
+| **3** | Store e interface base | G | **CONCLUÍDA** | `fase-3` |
 | **4** | Mapa 3D mínimo | G | Pendente | — |
 | **5** | Painel da cidade completo | G | Pendente | — |
 | **6** | Lentes, minimapa, feed e busca | M | Pendente | — |
@@ -79,3 +79,22 @@
 10. [x] Comprovar metas de desempenho: perfil real fecha em 44.70 ms (meta: < 100 ms) e perfil de carga com 500 projetos e 5.000 tarefas fecha em 495.14 ms (meta: <= 1.000 ms).
 11. [x] Manter cobertura de código de `src/engine/` em 97.14% de linhas (requisito: >= 90%).
 12. [x] Manter 172 testes do Vitest, 1 teste E2E do Playwright e 100 módulos do `dependency-cruiser` 100% verdes sem violações.
+
+---
+
+## Plano e Checklist da Fase 3 — Store e Interface Base
+
+1. [x] Implementar barramento tipado de comandos desfazíveis em `src/store/comandos.ts` com validação estrita por Zod para todas as tabelas e schemas do domínio.
+2. [x] Implementar store Zustand completa em `src/store/campanhaStore.ts` com pilha de histórico (até 20 comandos para Ctrl+Z), recálculo incremental automático via `projetosInvalidados()` + `recalcularProjetos()` + `calcularDerivadosGlobais()`.
+3. [x] Implementar fechamento e reversão de turno semanal na store (`fecharTurno` e `desfazerUltimoTurno`) com prévia analítica dry-run (`obterPreviaTurno`).
+4. [x] Centralizar catálogo de textos e vocabulário temático em português brasileiro (`src/textos/pt-BR.ts`).
+5. [x] Implementar formatadores puros em `src/ui/formatadores.ts` (`formatarMoeda`, `formatarHoras`, `formatarPercentual`, `formatarData`, `obterInfoSaude`, `obterInfoFase`).
+6. [x] Implementar Barra Superior (HUD) com Caixa Total em R$, Runway com badge sustentável, Saldo de Horas Semanais, Semana Atual, botões de ação e atalhos globais.
+7. [x] Implementar Painel Lateral do Projeto em 6 abas (Visão Geral com detalhamento transparente de causas de saúde, Tarefas, Clientes, Finanças, Estoque, P&D).
+8. [x] Implementar modal de Captura Rápida com atalhos de teclado de tecla única: `[H]` Horas, `[T]` Tarefa, `[L]` Lançamento, `[E]` Evento.
+9. [x] Implementar modal de Fechamento de Turno Semanal com prévia dry-run (mudanças de fase, tarefas concluídas, fluxo líquido, alertas dos detectores) e confirmação idempotente.
+10. [x] Implementar Editor de Registros e Configurações (Setores, Estágios, Pesos de Fórmulas, Limiares e Aba de Dados com exportação/importação JSON).
+11. [x] Implementar alternância entre Vista Mapa (canvas 3D + marcadores estratégicos 2D) e Vista Lista acessível (tabela paginável com ordenação e filtros).
+12. [x] Criar suíte de testes unitários da store `tests/unit/store-comandos.test.ts` (6 testes cobrindo inicialização, comandos Zod, exigência de notas de lições para Ruínas, desfazer Ctrl+Z, fechamento/reversão de turno e importação atômica).
+13. [x] Criar teste E2E Playwright `tests/e2e/fase3-interface.spec.ts` validando o fluxo completo de aceitação: abrir do zero, criar setor, projeto, tarefa, horas, lançamento, fechar turno, exportar e reimportar JSON sem alteração de dados.
+14. [x] Manter suíte 100% verde: 178 testes unitários no Vitest, 2 testes E2E no Playwright, 0 erros no ESLint, 0 violações no `dependency-cruiser` e compilação de produção aprovada pelo Vite.

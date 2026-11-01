@@ -1,1 +1,11 @@
-export { PainelTerrenoFase0 } from './PainelTerrenoFase0';
+export * from './formatadores';
+export * from './BarraSuperior';
+export * from './PainelProjeto';
+export * from './VistaLista';
+export * from './CapturaRapida';
+export * from './ModalFecharTurno';
+export * from './BriefInicial';
+export * from './EditorRegistros';
+export * from './ModalCriarProjeto';
+export * from './PlaceholderMapa2D';
+export * from './PainelTerrenoFase0';
