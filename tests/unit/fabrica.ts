@@ -1,14 +1,21 @@
 import type {
+  Aplicacao,
   Base,
+  Cliente,
+  DumpBanco,
+  Fornecedor,
   ItemDeLista,
   Item,
   Lancamento,
+  Ligacao,
   Projeto,
   RegistroDeHoras,
   Saldo,
   Tarefa,
+  Tecnologia,
   VinculoCliente,
 } from '../../src/domain';
+import { criarDumpVazio } from '../../src/domain';
 
 const T = '2026-10-31T12:00:00.000Z';
 let seq = 0;
@@ -119,6 +126,67 @@ export function itemLista(o: Partial<ItemDeLista> = {}): ItemDeLista {
     status: 'falta',
     ...o,
   };
+}
+
+export function cliente(o: Partial<Cliente> = {}): Cliente {
+  return {
+    ...base(),
+    nome: 'Cliente Alpha',
+    contato: 'alpha@email.com',
+    statusRelacao: 'ativo',
+    ultimoContato: '2026-10-01',
+    observacoes: '',
+    ...o,
+  };
+}
+
+export function fornecedor(o: Partial<Fornecedor> = {}): Fornecedor {
+  return {
+    ...base(),
+    nome: 'Fornecedor Beta',
+    contato: 'beta@fornec.com',
+    prazoEntregaDias: 7,
+    observacoes: '',
+    ...o,
+  };
+}
+
+export function tecnologia(o: Partial<Tecnologia> = {}): Tecnologia {
+  return {
+    ...base(),
+    nome: 'Tecnologia X',
+    descricao: '',
+    estado: 'ideia',
+    estimativaHoras: 40,
+    ...o,
+  };
+}
+
+export function aplicacao(o: Partial<Aplicacao> = {}): Aplicacao {
+  return {
+    ...base(),
+    tecnologiaId: 'tec-1',
+    projetoId: 'p1',
+    efeito: 'custo',
+    valorEstimadoCentavos: 100000,
+    ...o,
+  };
+}
+
+export function ligacao(o: Partial<Ligacao> = {}): Ligacao {
+  return {
+    ...base(),
+    origemId: 'p1',
+    destinoId: 'p2',
+    tipoId: 'tipo-1',
+    forca: 1,
+    ...o,
+  };
+}
+
+/** Cria um dump de banco vazio com meta e tabelas zeradas. */
+export function dumpVazio(): DumpBanco {
+  return criarDumpVazio();
 }
 
 /** Lançamentos mensais de receita/custo nos meses (AAAA-MM) informados. */

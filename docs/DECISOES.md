@@ -60,3 +60,22 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Contexto:** A Seção 3.5 e 9.2 exigem cálculo de caixa acumulado, fluxo mensal por projeto e consolidado, projeção dos próximos 6 meses com recorrências, runway, ROI por hora com ranking, financiamento cruzado e custo de oportunidade.
 - **Decisão:** Todos os cálculos financeiros operam estritamente sobre centavos inteiros (`Centavos = number`), utilizando `Math.round` para operações com divisão (ex: ROI por hora e custo mensal médio). O runway é reportado como sustentável quando o fluxo mensal líquido for positivo ou custo for zero, e em meses quando negativo. A projeção de 6 meses materializa apenas lançamentos com `recorrente: true` e `ate` posterior ao mês projetado.
 - **Motivo:** Eliminar qualquer erro acumulado de ponto flutuante monetário e garantir reprodutibilidade matemática exata.
+
+---
+
+## [2026-10-31] DEC-009 — Validação de Grafo Acíclico Dirigido (DAG) e Progressão Estrita da Árvore Tecnológica
+- **Contexto:** A Seção 2, 3.8 e 9.2 tratam da árvore de tecnologias com pré-requisitos (`preRequisitosIds`), pesquisa com horas registradas e aplicações em projetos. Era necessário assegurar que a definição de dependências jamais gere ciclos infinitos (diretos ou indiretos) e que transições de estado obedeçam às regras formais.
+- **Decisão:** A função pura `criariaCicloPreRequisito` (`src/engine/arvoreTecnologica.ts`) executa busca em profundidade com detecção de ciclo em grafo orientado para qualquer tentativa de adicionar pré-requisito a uma tecnologia existente ou nova. Adicionalmente, transições para o estado `pesquisando` são bloqueadas caso qualquer pré-requisito não esteja no estado `dominada`, e o ranking de retorno prioriza tecnologias com maior impacto cruzado em projetos.
+- **Motivo:** Garantir integridade estrutural matemática da árvore de conhecimento e comportamento determinístico do motor de progressão.
+
+---
+
+## [2026-10-31] DEC-010 — Motor de Fechamento de Turno Semanal Idempotente em 6 Passos e Otimizações Estruturais
+- **Contexto:** A Seção 3.1 exige que o fechamento de turno execute 6 etapas estritas (materialização de recorrências, recálculo de derivados, disparo de detectores, avaliação de conquistas, gravação do instantâneo e avanço de semana). O fechamento deve ser estritamente idempotente (fechar duas vezes a mesma semana gera contagens nulas adicionais) e completar em < 100 ms no perfil real e ≤ 1.000 ms no perfil de carga com 500 projetos e 5.000 tarefas.
+- **Decisão:** O motor `fecharTurnoSemanal` (`src/engine/turno.ts`) processa o fechamento através de pipeline funcional puro identificando cada operação pelo `fechamentoId` único do turno. Para cumprir as metas de tempo:
+  1. Comparação de datas em loops massivos feita com strings ISO `AAAA-MM-DD` pré-calculadas em vez de alocações repetidas de instâncias de `Date`.
+  2. Indexação de tarefas e lançamentos recorrentes através de `Set<string>` garantindo checagens de duplicação em tempo O(1).
+  3. Curto-circuito em `calcularFase` para projetos sem clientes e sem receita, poupando varreduras de histórico multi-mês desnecessárias.
+  4. Suporte a execução assíncrona off-thread via Web Worker (`src/workers/fechamento.worker.ts`) com fallback transparente para Node/Vitest.
+- **Evidência do Teste:** Fechamento de turno no perfil real completado em `44.70 ms` (meta: < 100 ms) e no perfil de carga completado em `495.14 ms` (meta: ≤ 1.000 ms), com prova de idempotência estrita validada por teste de propriedades com `fast-check`.
+- **Motivo:** Cumprir os critérios de aceitação da Seção 8 e assegurar uma experiência de usuário sem engasgos ou perda de fluidez.

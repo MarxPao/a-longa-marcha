@@ -71,3 +71,34 @@ export function ultimoMesCompleto(hoje: Data): string {
 export function mesesTerminandoEm(ymFim: string, n: number): string[] {
   return Array.from({ length: n }, (_, i) => somarMeses(ymFim, i - (n - 1)));
 }
+
+/** Dia da semana em UTC (0=domingo, 1=segunda, ..., 6=sábado). */
+export function diaDaSemanaUTC(d: Data): number {
+  const [a, m, dia] = d.split('-').map(Number) as [number, number, number];
+  return new Date(Date.UTC(a, m - 1, dia)).getUTCDay();
+}
+
+/** Segunda-feira correspondente à data `d` (identificador canônico da semana). */
+export function inicioDaSemana(d: Data): Data {
+  const dow = diaDaSemanaUTC(d);
+  const diasAtras = (dow + 6) % 7;
+  return somarDias(d, -diasAtras);
+}
+
+/** Domingo correspondente à semana (segunda-feira + 6 dias). */
+export function fimDaSemana(semana: Data): Data {
+  return somarDias(semana, 6);
+}
+
+export function proximaSemana(semana: Data): Data {
+  return somarDias(semana, 7);
+}
+
+export function semanaAnterior(semana: Data): Data {
+  return somarDias(semana, -7);
+}
+
+/** Se uma data cai no intervalo [semana, semana + 6 dias]. */
+export function estaNaSemana(d: Data, semana: Data): boolean {
+  return d >= semana && d <= fimDaSemana(semana);
+}

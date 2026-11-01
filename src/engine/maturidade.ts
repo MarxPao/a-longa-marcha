@@ -50,6 +50,14 @@ function agruparMeses(lancamentos: readonly Lancamento[], em: Data): Map<string,
 }
 
 function clientesAtivosEm(vinculos: readonly VinculoCliente[], em: Data): number {
+  if (vinculos.length === 0) return 0;
+  if (vinculos.length === 1) {
+    const v = vinculos[0]!;
+    if (v.arquivadoEm === null && v.receitaRecorrenteCentavos > 0 && v.inicio <= em && (v.fim === null || v.fim >= em)) {
+      return 1;
+    }
+    return 0;
+  }
   const ids = new Set<UUID>();
   for (const v of vinculos) {
     if (v.arquivadoEm !== null || v.receitaRecorrenteCentavos <= 0) continue;
@@ -62,7 +70,12 @@ function clientesAtivosEm(vinculos: readonly VinculoCliente[], em: Data): number
  * Fase pela regra, sem histerese (3.4): cada regra é avaliada de cima para baixo e vale a mais alta
  * satisfeita. Considera apenas dados até `em`. Meses "seguidos" são sempre meses civis completos.
  */
-export function faseBruta(d: DadosFase, em: Data, config: Config): NivelFase {
+export function faseBruta(
+  d: DadosFase,
+  em: Data,
+  config: Config,
+  mapaMensalPrecomputado?: Map<string, ReceitaCustoMes>
+): NivelFase {
   const m = config.maturidade;
 
   let horasTotais = 0;
@@ -71,12 +84,19 @@ export function faseBruta(d: DadosFase, em: Data, config: Config): NivelFase {
   for (const t of d.tarefas) {
     if (t.arquivadoEm === null && t.status === 'feita' && (t.concluidaEm === null || t.concluidaEm <= em)) concluidas++;
   }
-  const clientes = clientesAtivosEm(d.vinculos, em);
-  const mensal = agruparMeses(d.lancamentos, em);
-  const ultimoMes = ultimoMesCompleto(em);
   const temReceita = d.lancamentos.some(
     (l) => l.arquivadoEm === null && l.tipo === 'receita' && l.valorCentavos > 0 && l.data <= em
   );
+  const clientes = clientesAtivosEm(d.vinculos, em);
+
+  // Fast-path para projetos sem clientes nem receita (Faísca ou Expedição)
+  if (!temReceita && clientes === 0) {
+    if (concluidas >= m.tarefasExpedicao || horasTotais >= m.horasExpedicao) return 2;
+    return 1;
+  }
+
+  const mensal = mapaMensalPrecomputado ?? agruparMeses(d.lancamentos, em);
+  const ultimoMes = ultimoMesCompleto(em);
 
   // Metrópole (e Legado)
   const meses6 = mesesTerminandoEm(ultimoMes, m.mesesMetropole);
@@ -182,18 +202,24 @@ export function calcularFase(
   }
   const id = d.projeto.id;
   const meses = mesesTerminandoEm(ultimoMesCompleto(hoje), MESES_DE_HISTORICO);
-  const serie = meses.map((ym) => faseBruta(d, fimDoMes(ym), config));
+  const mapaMensal = agruparMeses(d.lancamentos, hoje);
+  const serie = meses.map((ym) => faseBruta(d, fimDoMes(ym), config, mapaMensal));
 
-  const historico = instantaneos
-    .filter((i) => i.porProjeto[id] !== undefined && i.semana <= hoje)
-    .sort((a, b) => (a.semana < b.semana ? -1 : a.semana > b.semana ? 1 : 0));
   const inicioJanela = fimDoMes(meses[0] ?? mesDe(hoje));
   let ancora: NivelFase | null = null;
-  for (const i of historico) if (i.semana <= inicioJanela) ancora = i.porProjeto[id]?.fase ?? null;
-  const anterior = historico.length > 0 ? (historico[historico.length - 1]?.porProjeto[id]?.fase ?? null) : null;
+  let anterior: NivelFase | null = null;
+
+  for (const i of instantaneos) {
+    if (i.semana > hoje) break;
+    const pInfo = i.porProjeto[id];
+    if (pInfo !== undefined) {
+      if (i.semana <= inicioJanela) ancora = pInfo.fase;
+      anterior = pInfo.fase;
+    }
+  }
 
   const hist = aplicarHisterese(serie, ancora, config);
-  const faseBrutaHoje = faseBruta(d, hoje, config);
+  const faseBrutaHoje = faseBruta(d, hoje, config, mapaMensal);
   const fase = Math.max(hist.fase, faseBrutaHoje);
   return {
     fase,

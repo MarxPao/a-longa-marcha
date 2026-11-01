@@ -7,7 +7,7 @@
 | **0** | Fundação e spike do terreno | P | **CONCLUÍDA** | `fase-0` |
 | **1** | Dados e persistência | M | **CONCLUÍDA** | `fase-1` |
 | **2A** | Motor I: derivados e finanças | G | **CONCLUÍDA** | `fase-2a` |
-| **2B** | Motor II: detectores, P&D, eventos, conquistas e turno | G | Pendente | — |
+| **2B** | Motor II: detectores, P&D, eventos, conquistas e turno | G | **CONCLUÍDA** | `fase-2b` |
 | **3** | Store e interface base | G | Pendente | — |
 | **4** | Mapa 3D mínimo | G | Pendente | — |
 | **5** | Painel da cidade completo | G | Pendente | — |
@@ -62,3 +62,20 @@
 12. [x] Medir e comprovar recálculo incremental sub-16ms em banco de carga (500 projetos, 5.000 tarefas): mediana de 0.75 ms e p95 de 1.60 ms.
 13. [x] Medir e comprovar cobertura de código de `src/engine/`: 98.29% de linhas cobertas (exigência: >= 90%).
 14. [x] Manter todos os linters (`tsc`, `lint`, `lint:camadas`), 122 testes do Vitest e 1 teste E2E do Playwright 100% verdes.
+
+---
+
+## Plano e Checklist da Fase 2B — Motor II: Detectores, P&D, Eventos, Conquistas e Turno
+
+1. [x] Implementar os 7 detectores de inteligência em `src/engine/detectores.ts` (`inanicao` com alerta amarelo aos 7d e vermelho aos 30d, `sinergia` entre projetos do mesmo setor/tecnologia sem ligação, `gargalo_atencao` com soma de horas > disponíveis, projeto direto com <1h e troca de contexto com >4 setores, `concentracao_cliente` com cliente respondendo por >40% da receita ou presente em >=3 projetos, `ponto_unico_falha` com fornecedor ou equipamento crítico em >=3 projetos, `estoque` com saldo abaixo do mínimo ou falta na BOM antes do prazo da tarefa cruzado com prazo de entrega do fornecedor, e `tecnologia_alto_retorno` com pesquisa que desbloqueia >=3 projetos).
+2. [x] Implementar árvore tecnológica em `src/engine/arvoreTecnologica.ts` com validação de ciclo acíclico dirigido (DAG) que rejeita ciclos diretos e transitivos (`criariaCicloPreRequisito`), transição de estado estrita (só pesquisa se todos os pré-requisitos estiverem `dominada`), progresso por horas registradas e ranking de retorno (`rankingOQuePesquisarPrimeiro`).
+3. [x] Implementar motor de eventos puros em `src/engine/eventos.ts` com factory segura, imutabilidade, resposta a eventos com registro histórico de opções e busca cronológica de decisões anteriores.
+4. [x] Implementar avaliação determinística de conquistas em `src/engine/conquistas.ts` baseada estritamente em fatos reais (`consistencia`, `expansao`, `sinergia`, `resiliencia`, `escala`, `diplomacia` e promoções de fase da cidade).
+5. [x] Implementar cálculo de recorrências em `src/engine/recorrencia.ts` (semanal, mensal com clamp seguro para dias curtos de 28 a 30 dias, trimestral e anual, respeitando a validade `ate`).
+6. [x] Implementar motor de fechamento de turno semanal em 6 passos sequenciais e idempotentes em `src/engine/turno.ts` (materialização de recorrências, recálculo de estado derivado, disparo de detectores, avaliação de conquistas, gravação do instantâneo e avanço de semana).
+7. [x] Implementar mecanismo de desfazer turno (`desfazerFechamentoTurno`), fechamento em lote de semanas pendentes (`fecharSemanasPendentes`) e prévia pura sem efeitos colaterais (`previaFechamentoTurno`).
+8. [x] Implementar Web Worker (`src/workers/fechamento.worker.ts`) e dispatcher com fallback síncrono transparente (`src/workers/index.ts`).
+9. [x] Criar suíte completa de testes unitários para a Fase 2B (`engine-detectores.test.ts`, `engine-arvore.test.ts`, `engine-eventos-conquistas.test.ts`, `engine-turno.test.ts`), incluindo teste de propriedade matemática de idempotência com `fast-check`.
+10. [x] Comprovar metas de desempenho: perfil real fecha em 44.70 ms (meta: < 100 ms) e perfil de carga com 500 projetos e 5.000 tarefas fecha em 495.14 ms (meta: <= 1.000 ms).
+11. [x] Manter cobertura de código de `src/engine/` em 97.14% de linhas (requisito: >= 90%).
+12. [x] Manter 172 testes do Vitest, 1 teste E2E do Playwright e 100 módulos do `dependency-cruiser` 100% verdes sem violações.
