@@ -144,4 +144,17 @@ Este documento registra todas as decisões de arquitetura, resultados de spikes 
 - **Evidência do Teste:** O teste unitário `lentes-e-busca.test.ts` e os Cenários 2 e 3 de `fase6-lentes-feed-busca.spec.ts` comprovam busca em `≤ 100 ms` no perfil carga, voo de câmera até o alvo e abertura do feed de eventos pelo selo do mensageiro.
 - **Motivo:** Cumprir rigorosamente as metas de desempenho e usabilidade da Seção 7.4 e 8 sem dependências externas de indexação.
 
+## [2026-11-01] DEC-019 — Árvore Tecnológica com Grafo Acíclico (DAG), Fios Dourados SVG e Luzes Azuis P&D no Mapa 3D
+- **Contexto:** A Fase 7 exige a tela da Árvore Tecnológica (`G`) com nós ligados por fios dourados, validação anti-ciclo, bloqueio de transição de estado quando pré-requisitos não estão `dominada`, seção *"O Que Pesquisar Primeiro"* e marcador visual (luz azul celeste) nas cidades com tecnologias aplicadas no mapa 3D.
+- **Decisão:** Exposição das validações puras de `src/engine/arvoreTecnologica.ts` (`criariaCicloPreRequisito`, `validarTransicaoEstadoTecnologia` e `rankingOQuePesquisarPrimeiro`) através de ações tipadas em `src/store/campanhaStore.ts`, preservando a fronteira de camadas (`src/ui` nunca importa `src/engine`). O componente `src/ui/TelaArvoreTecnologica.tsx` calcula o layout topológico em colunas e desenha curvas Bezier cúbicas douradas (`#E5B842`) em SVG. No mapa 3D (`src/map/cidadesInstanciadas.ts`), `malhaLuzesPd` (`THREE.InstancedMesh` com geometria toroidal azul `#3182CE`) destaca no terreno todas as cidades com tecnologias aplicadas.
+- **Evidência do Teste:** O Cenário 1 de `tests/e2e/fase7-arvore-estoque.spec.ts` comprova via interface a criação de tecnologias, renderização de fios dourados, bloqueio de ciclo com mensagem explicativa, bloqueio de pesquisa sem pré-requisito dominado, promoção após dominar pré-requisito e incremento de `obterTotalLuzesPdAtivas()` no mapa 3D.
+- **Motivo:** Garantir integridade de grafo acíclico (DAG) e feedback visual imediato entre P&D e cidades no mapa estratégico.
+
+## [2026-11-01] DEC-020 — Gestão de Estoque Multi-Armazém, Bloqueio de Saldo Negativo e Recálculo Automático de Cobertura da BOM
+- **Contexto:** A Fase 7 exige gestão completa de fornecedores, armazéns, catálogo de itens, saldos, movimentações (`entrada`, `saida`, `ajuste`), lista de materiais (BOM) por projeto e lista consolidada de compra sugerida por fornecedor.
+- **Decisão:** Implementação da ação `registrarMovimentoEstoque` em `src/store/campanhaStore.ts` que valida saldo disponível antes de qualquer `saida` (impedindo estoque negativo com mensagem clara), grava o `Movimento`, atualiza o `Saldo` do par `(itemId, armazemId)` e recalcula automaticamente o `status` (`pronto` vs. `falta`) dos registros `ItemDeLista` (BOM) afetados. O modal `src/ui/TelaEstoqueGlobal.tsx` organiza a operação em 3 abas e consolida a Compra Sugerida cruzando faltas da BOM, estoque mínimo e prazo/custo do fornecedor.
+- **Evidência do Teste:** O Cenário 2 de `tests/e2e/fase7-arvore-estoque.spec.ts` comprova o cadastro de fornecedor, armazém e item, adição de BOM em falta, exibição na Compra Sugerida, bloqueio de saída com saldo insuficiente e cobertura automática da BOM após entrada de estoque.
+- **Motivo:** Assegurar consistência transacional entre movimentações físicas de armazém e prontidão de materiais das cidades.
+
+
 

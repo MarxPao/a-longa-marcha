@@ -33,6 +33,10 @@ export class GerenciadorCidadesInstanciadas {
   // Indicador visual de cidade selecionada (Anel luminoso de jade/ouro)
   private indicadorSelecao: THREE.Mesh | null = null;
 
+  // Luz azul de P&D em InstancedMesh para cidades com tecnologias aplicadas (Fase 7)
+  private malhaLuzesPd: THREE.InstancedMesh | null = null;
+  private capacidadeLuzesPd = 64;
+
   constructor(cena: THREE.Scene) {
     this.cena = cena;
     this.geometrias = construirGeometriasCidades();
@@ -45,6 +49,7 @@ export class GerenciadorCidadesInstanciadas {
 
     this.inicializarMalhas();
     this.criarIndicadorSelecao();
+    this.criarMalhaLuzesPd(this.capacidadeLuzesPd);
   }
 
   private inicializarMalhas(): void {
@@ -81,6 +86,30 @@ export class GerenciadorCidadesInstanciadas {
     this.indicadorSelecao.name = 'indicador-selecao-cidade';
     this.indicadorSelecao.visible = false;
     this.cena.add(this.indicadorSelecao);
+  }
+
+  private criarMalhaLuzesPd(capacidade: number): void {
+    if (this.malhaLuzesPd) {
+      this.cena.remove(this.malhaLuzesPd);
+      this.malhaLuzesPd.geometry.dispose();
+      (this.malhaLuzesPd.material as THREE.Material).dispose();
+    }
+
+    const geoHalo = new THREE.TorusGeometry(2.6, 0.22, 8, 24);
+    geoHalo.rotateX(Math.PI / 2);
+
+    const matHalo = new THREE.MeshBasicMaterial({
+      color: '#3182CE',
+      transparent: true,
+      opacity: 0.9,
+    });
+
+    this.malhaLuzesPd = new THREE.InstancedMesh(geoHalo, matHalo, capacidade);
+    this.malhaLuzesPd.name = 'luzes-azuis-pd-cidades';
+    this.malhaLuzesPd.count = 0;
+    this.malhaLuzesPd.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.cena.add(this.malhaLuzesPd);
+    this.capacidadeLuzesPd = capacidade;
   }
 
   private garantirCapacidade(nivel: NivelMaturidadeVisual, quantidadeNecessaria: number): void {
@@ -246,6 +275,39 @@ export class GerenciadorCidadesInstanciadas {
         this.indicadorSelecao.visible = false;
       }
     }
+
+    // Atualiza luz azul de P&D nas cidades com tecnologias aplicadas (Fase 7)
+    const idsComPd = new Set<UUID>();
+    for (const ap of contextoLente?.aplicacoes ?? []) {
+      if (ap.arquivadoEm === null) {
+        idsComPd.add(ap.projetoId);
+      }
+    }
+
+    const projetosComPd = projetos.filter(
+      (p) => p.arquivadoEm === null && idsComPd.has(p.id)
+    );
+    if (projetosComPd.length > this.capacidadeLuzesPd) {
+      let novaCap = this.capacidadeLuzesPd;
+      while (novaCap < projetosComPd.length) novaCap *= 2;
+      this.criarMalhaLuzesPd(novaCap);
+    }
+
+    if (this.malhaLuzesPd) {
+      this.malhaLuzesPd.count = projetosComPd.length;
+      const matLuz = new THREE.Matrix4();
+      for (let i = 0; i < projetosComPd.length; i++) {
+        const p = projetosComPd[i]!;
+        const y = obterAlturaTerreno(p.x, p.z);
+        matLuz.makeTranslation(p.x, y + 3.2, p.z);
+        this.malhaLuzesPd.setMatrixAt(i, matLuz);
+      }
+      this.malhaLuzesPd.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  public obterTotalLuzesPdAtivas(): number {
+    return this.malhaLuzesPd?.count ?? 0;
   }
 
   public obterProjetoPorInstancia(
@@ -271,6 +333,13 @@ export class GerenciadorCidadesInstanciadas {
       this.indicadorSelecao.geometry.dispose();
       (this.indicadorSelecao.material as THREE.Material).dispose();
       this.indicadorSelecao = null;
+    }
+
+    if (this.malhaLuzesPd) {
+      this.cena.remove(this.malhaLuzesPd);
+      this.malhaLuzesPd.geometry.dispose();
+      (this.malhaLuzesPd.material as THREE.Material).dispose();
+      this.malhaLuzesPd = null;
     }
 
     for (const geo of Object.values(this.geometrias)) {

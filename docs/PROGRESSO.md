@@ -12,7 +12,7 @@
 | **4** | Mapa 3D mínimo | G | **CONCLUÍDA** | `fase-4` |
 | **5** | Painel da cidade completo | G | **CONCLUÍDA** | `fase-5` |
 | **6** | Lentes, minimapa, feed e busca | M | **CONCLUÍDA** | `fase-6` |
-| **7** | Árvore tecnológica e estoque | M | Pendente | — |
+| **7** | Árvore tecnológica e estoque | M | **CONCLUÍDA** | `fase-7` |
 | **8** | Desempenho | M | Pendente | — |
 | **9** | Atmosfera e acabamento | G | Pendente | — |
 | **10** | Endurecimento e entrega | P | Pendente | — |
@@ -149,5 +149,17 @@
 4. [x] Implementar Busca Global (`/` ou `Ctrl+K`) em `src/domain/buscaGlobal.ts` e `src/ui/BuscaGlobal.tsx` encontrando projeto, tarefa, cliente, item e tecnologia em `≤ 100 ms` por tecla no perfil carga, com voo suave de câmera (`MapView.voarAte`) até o destino.
 5. [x] Criar suíte de testes unitários `tests/unit/lentes-e-busca.test.ts` (6 testes) e suíte E2E `tests/e2e/fase6-lentes-feed-busca.spec.ts` (3 cenários, incluindo 8 capturas de referência por lente com semente fixa e verificação de imutabilidade do `THREE.Scene`).
 6. [x] Manter suíte 100% verde: 190 testes unitários no Vitest (15 arquivos), 12 testes E2E no Playwright (5 arquivos), 0 erros no ESLint, 0 violações no `dependency-cruiser` (78 módulos) e compilação de produção aprovada.
+
+---
+
+## Plano e Checklist da Fase 7 — Árvore Tecnológica e Estoque Completo
+
+1. [x] Expandir `src/store/campanhaStore.ts` com modais `'arvoreTecnologica'` e `'estoqueGlobal'` e ações validadas pelo motor puro: `adicionarPreRequisitoTecnologia` (bloqueio de ciclos no DAG via `criariaCicloPreRequisito`), `removerPreRequisitoTecnologia`, `alterarEstadoTecnologia` (validação de pré-requisitos dominados via `validarTransicaoEstadoTecnologia`), `obterRankingTecnologias` (`rankingOQuePesquisarPrimeiro`) e `registrarMovimentoEstoque` (bloqueio de saldo negativo e recálculo automático da BOM).
+2. [x] Implementar `src/ui/TelaArvoreTecnologica.tsx` (atalho `G` e botão HUD `🔬 P&D [G]`) com fundo de laca escura (`#1B1814`), layout topológico em colunas, fios dourados em curvas Bezier SVG (`svg-fios-arvore`), alerta de bloqueio de ciclo/pré-requisito (`alerta-erro-arvore`), seção *"O Que Pesquisar Primeiro"* (`secao-ranking-pesquisa`) e aplicação de tecnologias dominadas às cidades.
+3. [x] Implementar marcador visual de luz azul P&D (`#3182CE`) em `src/map/cidadesInstanciadas.ts` (`malhaLuzesPd` em `THREE.InstancedMesh`) e `MapView.obterTotalLuzesPdAtivas()` destacando no mapa 3D as cidades com tecnologias aplicadas.
+4. [x] Implementar `src/ui/TelaEstoqueGlobal.tsx` (botão HUD `📦 Estoque`) com 3 abas: Saldos & Movimentos (registro de entrada, saída e ajuste com bloqueio de saldo negativo), Cadastros de Fornecedores, Armazéns e Itens, e Lista de Materiais (BOM) & Compra Sugerida consolidada por fornecedor.
+5. [x] Criar suíte E2E `tests/e2e/fase7-arvore-estoque.spec.ts` (2 cenários completos exercitando pela interface todos os casos de árvore e estoque da Tabela 7.2).
+6. [x] Manter suíte 100% verde: 190 testes unitários no Vitest (15 arquivos), 14 testes E2E no Playwright (6 arquivos), 0 erros no ESLint, 0 violações no `dependency-cruiser` (80 módulos) e compilação de produção aprovada.
+
 
 

@@ -7,18 +7,25 @@ import {
   type Config,
   type Data,
   type DumpBanco,
+  type ItemDeLista,
   type LenteMapa,
+  type Movimento,
+  type Saldo,
+  type Tecnologia,
   type UUID,
 } from '../domain';
 import {
   calcularDerivadosGlobais,
   construirIndice,
+  criariaCicloPreRequisito,
   desfazerFechamentoTurno,
   fecharTurnoSemanal,
   previaFechamentoTurno,
   projetosInvalidados,
+  rankingOQuePesquisarPrimeiro,
   recalcularProjetos,
   somarDias,
+  validarTransicaoEstadoTecnologia,
   type DerivadosGlobais,
   type DerivadosProjeto,
   type IndiceEstado,
@@ -54,6 +61,8 @@ export type TipoModal =
   | 'capturaRapida'
   | 'criarProjeto'
   | 'buscaGlobal'
+  | 'arvoreTecnologica'
+  | 'estoqueGlobal'
   | null;
 
 export type TipoCapturaRapida = 'horas' | 'tarefa' | 'lancamento' | 'evento' | null;
@@ -119,6 +128,35 @@ export interface EstadoCampanha {
   definirLenteAtiva: (lente: LenteMapa) => void;
   definirFiltroLista: (parcial: Partial<FiltroListaProjetos>) => void;
   limparNotificacao: () => void;
+
+  // Fase 7 — Árvore Tecnológica e Estoque Completo
+  adicionarPreRequisitoTecnologia: (
+    tecnologiaId: UUID,
+    preRequisitoId: UUID
+  ) => Promise<{ ok: boolean; erro?: string }>;
+  removerPreRequisitoTecnologia: (
+    tecnologiaId: UUID,
+    preRequisitoId: UUID
+  ) => Promise<void>;
+  alterarEstadoTecnologia: (
+    tecnologiaId: UUID,
+    novoEstado: 'ideia' | 'pesquisando' | 'dominada'
+  ) => Promise<{ ok: boolean; erro?: string }>;
+  obterRankingTecnologias: () => Array<{
+    tecnologia: Tecnologia;
+    projetosDesbloqueados: number;
+    tecnologiasDesbloqueadas: number;
+    pontuacaoImpacto: number;
+    podePesquisar: boolean;
+  }>;
+  registrarMovimentoEstoque: (dados: {
+    itemId: UUID;
+    armazemId: UUID;
+    tipo: 'entrada' | 'saida' | 'ajuste';
+    quantidade: number;
+    data: Data;
+    projetoId: UUID | null;
+  }) => Promise<{ ok: boolean; erro?: string }>;
 }
 
 const LIMITE_HISTORICO_COMANDOS = 20;
@@ -795,5 +833,188 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
 
   limparNotificacao: () => {
     set({ notificacao: null });
+  },
+
+  adicionarPreRequisitoTecnologia: async (tecnologiaId, preRequisitoId) => {
+    const { dump, repositorio, semanaAtual } = get();
+
+    if (tecnologiaId === preRequisitoId) {
+      const msg = 'Uma tecnologia não pode ser pré-requisito de si mesma.';
+      set({ notificacao: { tipo: 'erro', mensagem: msg } });
+      return { ok: false, erro: msg };
+    }
+
+    const jaExiste = dump.preRequisitosTecnologia.some(
+      (pr) => pr.tecnologiaId === tecnologiaId && pr.preRequisitoId === preRequisitoId
+    );
+    if (jaExiste) {
+      return { ok: true };
+    }
+
+    const geraCiclo = criariaCicloPreRequisito(
+      dump.preRequisitosTecnologia,
+      tecnologiaId,
+      preRequisitoId
+    );
+    if (geraCiclo) {
+      const msg =
+        'Ciclo detectado: adicionar este pré-requisito criaria uma dependência circular proibida na Árvore Tecnológica.';
+      set({ notificacao: { tipo: 'erro', mensagem: msg } });
+      return { ok: false, erro: msg };
+    }
+
+    const novoDump = clonarDump(dump);
+    novoDump.preRequisitosTecnologia.push({ tecnologiaId, preRequisitoId });
+
+    const { indice, derivadosPorProjeto, derivadosGlobais } = inicializarEstadoDerivado(
+      novoDump,
+      semanaAtual
+    );
+
+    set({
+      dump: novoDump,
+      indice,
+      derivadosPorProjeto,
+      derivadosGlobais,
+      notificacao: { tipo: 'sucesso', mensagem: 'Pré-requisito tecnológico vinculado.' },
+    });
+
+    await repositorio.importar(novoDump);
+    return { ok: true };
+  },
+
+  removerPreRequisitoTecnologia: async (tecnologiaId, preRequisitoId) => {
+    const { dump, repositorio, semanaAtual } = get();
+    const novoDump = clonarDump(dump);
+    novoDump.preRequisitosTecnologia = novoDump.preRequisitosTecnologia.filter(
+      (pr) => !(pr.tecnologiaId === tecnologiaId && pr.preRequisitoId === preRequisitoId)
+    );
+
+    const { indice, derivadosPorProjeto, derivadosGlobais } = inicializarEstadoDerivado(
+      novoDump,
+      semanaAtual
+    );
+
+    set({
+      dump: novoDump,
+      indice,
+      derivadosPorProjeto,
+      derivadosGlobais,
+    });
+
+    await repositorio.importar(novoDump);
+  },
+
+  alterarEstadoTecnologia: async (tecnologiaId, novoEstado) => {
+    const { dump, atualizarEntidade } = get();
+    const validacao = validarTransicaoEstadoTecnologia(
+      tecnologiaId,
+      novoEstado,
+      dump.tecnologias.filter((t) => t.arquivadoEm === null),
+      dump.preRequisitosTecnologia
+    );
+
+    if (!validacao.permitido) {
+      const msg =
+        validacao.motivo ?? 'Não é possível avançar estado sem dominar pré-requisitos.';
+      set({ notificacao: { tipo: 'erro', mensagem: msg } });
+      return { ok: false, erro: msg };
+    }
+
+    await atualizarEntidade<Tecnologia>('tecnologias', tecnologiaId, {
+      estado: novoEstado,
+    });
+    return { ok: true };
+  },
+
+  obterRankingTecnologias: () => {
+    const { dump } = get();
+    return rankingOQuePesquisarPrimeiro(
+      dump.tecnologias,
+      dump.preRequisitosTecnologia,
+      dump.aplicacoes,
+      dump.projetos
+    );
+  },
+
+  registrarMovimentoEstoque: async (dados) => {
+    const { dump, criarEntidade, atualizarEntidade } = get();
+
+    const saldoExistente = dump.saldos.find(
+      (s) =>
+        s.arquivadoEm === null &&
+        s.itemId === dados.itemId &&
+        s.armazemId === dados.armazemId
+    );
+    const qtdAtual = saldoExistente?.quantidade ?? 0;
+
+    if (dados.tipo === 'saida' && dados.quantidade > qtdAtual) {
+      const msg = `Saldo insuficiente no armazém (disponível: ${qtdAtual}, solicitado: ${dados.quantidade}).`;
+      set({ notificacao: { tipo: 'erro', mensagem: msg } });
+      return { ok: false, erro: msg };
+    }
+
+    const novaQtd =
+      dados.tipo === 'entrada'
+        ? qtdAtual + dados.quantidade
+        : dados.tipo === 'saida'
+          ? qtdAtual - dados.quantidade
+          : dados.quantidade;
+
+    await criarEntidade<Movimento>('movimentos', {
+      itemId: dados.itemId,
+      armazemId: dados.armazemId,
+      tipo: dados.tipo,
+      quantidade: dados.quantidade,
+      data: dados.data,
+      projetoId: dados.projetoId,
+    });
+
+    if (saldoExistente) {
+      await atualizarEntidade<Saldo>('saldos', saldoExistente.id, {
+        quantidade: novaQtd,
+      });
+    } else {
+      await criarEntidade<Saldo>('saldos', {
+        itemId: dados.itemId,
+        armazemId: dados.armazemId,
+        quantidade: novaQtd,
+      });
+    }
+
+    // Recalcula cobertura dos itens da lista (BOM) para o item movimentado
+    const dumpAtualizado = get().dump;
+    const totalItem = dumpAtualizado.saldos
+      .filter((s) => s.arquivadoEm === null && s.itemId === dados.itemId)
+      .reduce((acc, s) => acc + s.quantidade, 0);
+
+    let saldoRestante = totalItem;
+    const itensAfetados = dumpAtualizado.itensDeLista.filter(
+      (il) => il.arquivadoEm === null && il.itemId === dados.itemId
+    );
+
+    for (const il of itensAfetados) {
+      if (il.status === 'reservado') {
+        saldoRestante = Math.max(0, saldoRestante - il.quantidade);
+        continue;
+      }
+      const novoStatus = saldoRestante >= il.quantidade ? 'pronto' : 'falta';
+      if (novoStatus === 'pronto') {
+        saldoRestante -= il.quantidade;
+      }
+      if (il.status !== novoStatus) {
+        await atualizarEntidade<ItemDeLista>('itensDeLista', il.id, {
+          status: novoStatus,
+        });
+      }
+    }
+
+    set({
+      notificacao: {
+        tipo: 'sucesso',
+        mensagem: `Movimento de ${dados.tipo} registrado. Novo saldo: ${novaQtd}.`,
+      },
+    });
+    return { ok: true };
   },
 }));

@@ -90,6 +90,26 @@ export function BarraSuperior(): React.JSX.Element {
 
         <button
           type="button"
+          className="botao-campanha"
+          data-testid="botao-abrir-arvore"
+          onClick={() => abrirModal('arvoreTecnologica')}
+          title="Árvore Tecnológica e P&D [Atalho: G]"
+        >
+          🔬 P&amp;D [G]
+        </button>
+
+        <button
+          type="button"
+          className="botao-campanha"
+          data-testid="botao-abrir-estoque"
+          onClick={() => abrirModal('estoqueGlobal')}
+          title="Estoque Global, Fornecedores e Armazéns"
+        >
+          📦 Estoque
+        </button>
+
+        <button
+          type="button"
           className="botao-campanha botao-campanha-ouro"
           data-testid="botao-captura-rapida"
           onClick={() => abrirModal('capturaRapida', 'horas')}

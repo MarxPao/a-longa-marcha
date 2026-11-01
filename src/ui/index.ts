@@ -12,3 +12,5 @@ export * from './PainelTerrenoFase0';
 export * from './Minimapa';
 export * from './FeedEventos';
 export * from './BuscaGlobal';
+export * from './TelaArvoreTecnologica';
+export * from './TelaEstoqueGlobal';

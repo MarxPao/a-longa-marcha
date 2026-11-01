@@ -15,6 +15,8 @@ import {
   ModalCriarProjeto,
   ModalFecharTurno,
   PainelProjeto,
+  TelaArvoreTecnologica,
+  TelaEstoqueGlobal,
   VistaLista,
 } from '../ui';
 import '../ui/tema.css';
@@ -204,6 +206,9 @@ export function App(): React.JSX.Element {
       } else if (key === 'E') {
         e.preventDefault();
         abrirModal('capturaRapida', 'evento');
+      } else if (key === 'G') {
+        e.preventDefault();
+        abrirModal('arvoreTecnologica');
       } else if (key === 'F') {
         e.preventDefault();
         const estado = useCampanhaStore.getState();
@@ -348,6 +353,8 @@ export function App(): React.JSX.Element {
       <ModalFecharTurno />
       <ModalCriarProjeto />
       <EditorRegistros />
+      <TelaArvoreTecnologica />
+      <TelaEstoqueGlobal />
       <BuscaGlobal
         aoVoarParaCoordenada={(x, z) => {
           mapViewRef.current?.voarAte(x, z);

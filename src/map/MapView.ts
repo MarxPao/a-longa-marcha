@@ -444,6 +444,10 @@ export class MapView {
     return this.cena.uuid;
   }
 
+  public obterTotalLuzesPdAtivas(): number {
+    return this.cidadesInstanciadas.obterTotalLuzesPdAtivas();
+  }
+
   /**
    * Executa voo de câmera suave até as coordenadas (x, z) desejadas.
    * Utilizado pela Busca Global (atalho /) e Foco (F).
