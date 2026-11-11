@@ -1,81 +1,58 @@
 import * as THREE from 'three';
+import { LAYOUT_PADRAO, PALETA_MAPA, obterRaioCidadePorNivel } from '../config/layout';
 import type { Projeto, SementeTerreno } from '../domain';
-import { amostrarTerrenoPorSemente, gerarHashSemente } from '../engine';
 
 /**
- * Gerenciador de Atmosfera e Acabamento do Mapa 3D (Seções 4.4, 4.7 e Fase 9):
- * - Rios que seguem os vales
- * - Névoa de guerra com estética de tinta dissolvida em água (cobre áreas sem projeto ativo)
- * - Partículas douradas de crescimento e névoa de moral baixa
- * - Respeito estrito a `reduzirMovimento` (Seção 6.8)
+ * Gerenciador de Atmosfera do Mapa Plano (Seções 3 e 4.6):
+ * - Sem rios gerados por altura (terreno 100% plano)
+ * - Névoa de tinta nas bordas do mapa e sobre áreas sem projeto ativo
+ * - Névoa de moral baixa (< 45%) e partículas douradas de crescimento
+ * - Respeito estrito a `reduzirMovimento`
  */
 export class GerenciadorAtmosferaMapa {
   private readonly cena: THREE.Scene;
-  private grupoRios: THREE.Group;
   private malhaNevoaGuerra: THREE.InstancedMesh | null = null;
   private malhaNevoaMoralBaixa: THREE.InstancedMesh | null = null;
   private pontosParticulasOuro: THREE.Points | null = null;
 
-  private celulasNevoaGuerra: Array<{ x: number; z: number; escala: number }> = [];
   private celulasAtivasNevoaGuerra = 0;
   private reduzirMovimento = false;
   private tempoAcumulado = 0;
 
   constructor(cena: THREE.Scene) {
     this.cena = cena;
-    this.grupoRios = new THREE.Group();
-    this.grupoRios.name = 'atmosfera-rios-vales';
-    this.cena.add(this.grupoRios);
-
-    this.inicializarNevoaDeGuerra();
+    this.inicializarNevoaDeBorda(240);
     this.inicializarNevoaMoralBaixa();
     this.inicializarParticulasCrescimento();
   }
 
-  private inicializarNevoaDeGuerra(): void {
-    // Grade de nuvens baixas de tinta aguada cobrindo regiões distantes de cidades ativas
-    const passos = 14;
-    const alcance = 145;
-    const celulas: Array<{ x: number; z: number; escala: number }> = [];
-
-    for (let ix = -passos; ix <= passos; ix++) {
-      for (let iz = -passos; iz <= passos; iz++) {
-        const x = (ix / passos) * alcance;
-        const z = (iz / passos) * alcance;
-        celulas.push({ x, z, escala: 14 + ((Math.abs(ix * 7 + iz * 13) % 5) * 1.8) });
-      }
-    }
-    this.celulasNevoaGuerra = celulas;
-
-    const geoDisco = new THREE.CircleGeometry(1, 10);
+  private inicializarNevoaDeBorda(capacidade: number): void {
+    const geoDisco = new THREE.CircleGeometry(1, 14);
     geoDisco.rotateX(-Math.PI / 2);
 
     const matTintaAguada = new THREE.MeshBasicMaterial({
-      color: '#2B2823',
+      color: PALETA_MAPA.tinta,
       transparent: true,
-      opacity: 0.34,
+      opacity: 0.28,
       depthWrite: false,
     });
 
-    this.malhaNevoaGuerra = new THREE.InstancedMesh(
-      geoDisco,
-      matTintaAguada,
-      celulas.length
-    );
+    this.malhaNevoaGuerra = new THREE.InstancedMesh(geoDisco, matTintaAguada, capacidade);
     this.malhaNevoaGuerra.name = 'atmosfera-nevoa-de-guerra';
     this.malhaNevoaGuerra.count = 0;
+    this.malhaNevoaGuerra.frustumCulled = false;
     this.malhaNevoaGuerra.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.cena.add(this.malhaNevoaGuerra);
   }
 
   private inicializarNevoaMoralBaixa(): void {
-    const geoAnelNevoa = new THREE.RingGeometry(1.8, 4.2, 16);
+    const geoAnelNevoa = new THREE.RingGeometry(1.0, 1.45, 20);
     geoAnelNevoa.rotateX(-Math.PI / 2);
 
     const matNevoa = new THREE.MeshBasicMaterial({
-      color: '#9DAAB0',
+      color: PALETA_MAPA.nevoa,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.58,
       side: THREE.DoubleSide,
       depthWrite: false,
     });
@@ -83,12 +60,13 @@ export class GerenciadorAtmosferaMapa {
     this.malhaNevoaMoralBaixa = new THREE.InstancedMesh(geoAnelNevoa, matNevoa, 512);
     this.malhaNevoaMoralBaixa.name = 'atmosfera-nevoa-moral-baixa';
     this.malhaNevoaMoralBaixa.count = 0;
+    this.malhaNevoaMoralBaixa.frustumCulled = false;
     this.malhaNevoaMoralBaixa.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.cena.add(this.malhaNevoaMoralBaixa);
   }
 
   private inicializarParticulasCrescimento(): void {
-    const qtd = 120;
+    const qtd = 140;
     const posicoes = new Float32Array(qtd * 3);
     for (let i = 0; i < qtd; i++) {
       posicoes[i * 3] = 0;
@@ -100,8 +78,8 @@ export class GerenciadorAtmosferaMapa {
     geo.setAttribute('position', new THREE.BufferAttribute(posicoes, 3));
 
     const mat = new THREE.PointsMaterial({
-      color: '#E5B842',
-      size: 1.6,
+      color: PALETA_MAPA.ouro,
+      size: 2.8,
       transparent: true,
       opacity: 0.85,
     });
@@ -111,96 +89,43 @@ export class GerenciadorAtmosferaMapa {
     this.cena.add(this.pontosParticulasOuro);
   }
 
-  /**
-   * Gera leitos de rios sinuosos que seguem os vales do terreno para a semente atual (Seção 4.7).
-   */
   public gerarRiosPorSemente(
-    semente: SementeTerreno,
-    obterAlturaTerreno: (x: number, z: number) => number
+    _semente: SementeTerreno,
+    _obterAlturaTerreno: (x: number, z: number) => number
   ): void {
-    this.limparRios();
-    const hash = gerarHashSemente(semente);
-
-    // Dois rios imperiais principais cruzando os vales
-    for (let r = 0; r < 2; r++) {
-      const pontosRio: THREE.Vector3[] = [];
-      const passos = 28;
-      const faseOffset = ((hash >> (r * 4)) & 0xff) * 0.05;
-
-      for (let i = 0; i <= passos; i++) {
-        const t = i / passos;
-        const x = -135 + t * 270;
-        const desvioBase =
-          Math.sin(t * Math.PI * 2.2 + faseOffset) * 38 +
-          (r === 0 ? -28 : 32);
-
-        // Procura cota mais baixa na vizinhança transversal para seguir o vale
-        let melhorZ = desvioBase;
-        let menorY = Infinity;
-        for (let offset = -12; offset <= 12; offset += 6) {
-          const zCand = desvioBase + offset;
-          const amostra = amostrarTerrenoPorSemente(x, zCand, semente);
-          if (amostra.altura < menorY) {
-            menorY = amostra.altura;
-            melhorZ = zCand;
-          }
-        }
-
-        const yTerreno = obterAlturaTerreno(x, melhorZ);
-        pontosRio.push(new THREE.Vector3(x, Math.max(-1.05, yTerreno + 0.18), melhorZ));
-      }
-
-      const curva = new THREE.CatmullRomCurve3(pontosRio);
-      const geoRio = new THREE.TubeGeometry(curva, 36, 1.35 - r * 0.25, 5, false);
-      geoRio.scale(1, 0.15, 1);
-
-      const matRio = new THREE.MeshStandardMaterial({
-        color: '#346E5F',
-        roughness: 0.2,
-        metalness: 0.15,
-        transparent: true,
-        opacity: 0.88,
-      });
-
-      const malhaRio = new THREE.Mesh(geoRio, matRio);
-      malhaRio.name = `rio-imperial-${r + 1}`;
-      this.grupoRios.add(malhaRio);
-    }
+    // Seção 3: Terreno plano sem rios gerados por altura
   }
 
   /**
-   * Atualiza névoa de guerra (áreas sem projeto ativo), névoa de moral baixa e partículas douradas.
+   * Atualiza a névoa de tinta nas bordas do mapa, névoa de moral baixa e partículas douradas.
    */
   public atualizarEstadoAtmosfera(
     projetosAtivos: Projeto[],
     moralPorProjeto: Map<string, number>,
     fasePorProjeto: Map<string, number>,
-    obterAlturaTerreno: (x: number, z: number) => number
+    _obterAlturaTerreno: (x: number, z: number) => number,
+    raioMapa = LAYOUT_PADRAO.raioMinimoMapaAbsoluto
   ): void {
-    // 1. Névoa de Guerra (cobre células distantes > 48 unidades de qualquer cidade ativa)
+    // 1. Névoa de tinta nas bordas do mapa circular
     if (this.malhaNevoaGuerra) {
-      const raioDescobertaSq = 48 * 48;
       const mat = new THREE.Matrix4();
       const pos = new THREE.Vector3();
       const quat = new THREE.Quaternion();
       const esc = new THREE.Vector3();
       let countNevoa = 0;
 
-      for (const cel of this.celulasNevoaGuerra) {
-        let cobertaPorCidade = false;
-        for (const p of projetosAtivos) {
-          const dx = cel.x - p.x;
-          const dz = cel.z - p.z;
-          if (dx * dx + dz * dz <= raioDescobertaSq) {
-            cobertaPorCidade = true;
-            break;
-          }
-        }
+      // Dois anéis de nuvens de tinta ao redor da borda externa do mapa
+      const totalPorAnel = 96;
+      for (let anel = 0; anel < 2; anel++) {
+        const rBase = raioMapa * (0.94 + anel * 0.08);
+        for (let i = 0; i < totalPorAnel && countNevoa < 240; i++) {
+          const ang = (i / totalPorAnel) * Math.PI * 2 + anel * 0.03;
+          const variacaoR = ((i * 13) % 7) * 8;
+          const r = rBase + variacaoR;
+          const escalaDisco = 42 + ((i * 7) % 5) * 9;
 
-        if (!cobertaPorCidade) {
-          const y = Math.max(0, obterAlturaTerreno(cel.x, cel.z)) + 1.8;
-          pos.set(cel.x, y, cel.z);
-          esc.set(cel.escala, 1, cel.escala);
+          pos.set(Math.cos(ang) * r, 0.35 + anel * 0.1, Math.sin(ang) * r);
+          esc.set(escalaDisco, 1, escalaDisco);
           mat.compose(pos, quat, esc);
           this.malhaNevoaGuerra.setMatrixAt(countNevoa++, mat);
         }
@@ -223,8 +148,10 @@ export class GerenciadorAtmosferaMapa {
       for (const p of projetosAtivos) {
         const moral = moralPorProjeto.get(p.id) ?? 0.5;
         if (moral < 0.45 && countMoralBaixa < 512) {
-          const y = obterAlturaTerreno(p.x, p.z) + 1.4;
-          pos.set(p.x, y, p.z);
+          const fase = fasePorProjeto.get(p.id) ?? 1;
+          const raioCid = obterRaioCidadePorNivel(fase);
+          pos.set(p.x, 1.2, p.z);
+          esc.set(raioCid, 1, raioCid);
           mat.compose(pos, quat, esc);
           this.malhaNevoaMoralBaixa.setMatrixAt(countMoralBaixa++, mat);
         }
@@ -250,9 +177,11 @@ export class GerenciadorAtmosferaMapa {
           continue;
         }
         const cidade = cidadesCrescentes[i % cidadesCrescentes.length]!;
+        const fase = fasePorProjeto.get(cidade.id) ?? 2;
+        const raioCid = obterRaioCidadePorNivel(fase);
         const ang = (i * 1.37) % (Math.PI * 2);
-        const raio = 1.2 + (i % 5) * 0.45;
-        const yBase = obterAlturaTerreno(cidade.x, cidade.z) + 2.2 + (i % 6) * 0.7;
+        const raio = raioCid * (0.35 + ((i % 5) * 0.12));
+        const yBase = 6 + (i % 6) * 2.2;
         attrPos.setXYZ(
           i,
           cidade.x + Math.cos(ang) * raio,
@@ -271,7 +200,7 @@ export class GerenciadorAtmosferaMapa {
     if (!this.pontosParticulasOuro.visible) return;
 
     this.tempoAcumulado += deltaSegundos;
-    this.pontosParticulasOuro.position.y = Math.sin(this.tempoAcumulado * 2.2) * 0.65;
+    this.pontosParticulasOuro.position.y = Math.sin(this.tempoAcumulado * 2.2) * 1.2;
   }
 
   public definirReduzirMovimento(reduzir: boolean): void {
@@ -292,7 +221,7 @@ export class GerenciadorAtmosferaMapa {
     reduzirMovimento: boolean;
   } {
     return {
-      riosRenderizados: this.grupoRios.children.length,
+      riosRenderizados: 0,
       celulasNevoaGuerraAtivas: this.celulasAtivasNevoaGuerra,
       cidadesComNevoaMoralBaixa: this.malhaNevoaMoralBaixa?.count ?? 0,
       particulasAtivas: Boolean(this.pontosParticulasOuro?.visible),
@@ -300,19 +229,7 @@ export class GerenciadorAtmosferaMapa {
     };
   }
 
-  private limparRios(): void {
-    for (const filho of [...this.grupoRios.children]) {
-      this.grupoRios.remove(filho);
-      if (filho instanceof THREE.Mesh) {
-        filho.geometry.dispose();
-        (filho.material as THREE.Material).dispose();
-      }
-    }
-  }
-
   public destruir(): void {
-    this.limparRios();
-    this.cena.remove(this.grupoRios);
     if (this.malhaNevoaGuerra) {
       this.cena.remove(this.malhaNevoaGuerra);
       this.malhaNevoaGuerra.geometry.dispose();

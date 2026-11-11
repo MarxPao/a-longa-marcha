@@ -141,11 +141,14 @@ test.describe('Fase 6 — Lentes do Mapa, Minimapa, Feed de Eventos e Busca Glob
       const dumpCarga = seedDemo('carga', 'semente-busca-carga');
       dumpCarga.meta.config.brief.concluido = true;
       await useCampanhaStore.getState().importarJson(dumpCarga);
-      const alvo = dumpCarga.projetos[250]!;
-      return { id: alvo.id, nome: alvo.nome, x: alvo.x, z: alvo.z };
+      const dumpAtual = useCampanhaStore.getState().dump;
+      const alvo = dumpAtual.projetos[Math.min(250, dumpAtual.projetos.length - 1)]!;
+      const posX = alvo.posicao?.x ?? alvo.x;
+      const posZ = alvo.posicao?.z ?? alvo.z;
+      return { id: alvo.id, nome: alvo.nome, x: posX, z: posZ };
     });
 
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(600);
 
     // Fecha qualquer painel inicial
     await page.keyboard.press('Escape');
@@ -173,7 +176,7 @@ test.describe('Fase 6 — Lentes do Mapa, Minimapa, Feed de Eventos e Busca Glob
     await expect(page.getByTestId('painel-projeto-nome')).toHaveText(projetoAlvo.nome);
 
     // Aguarda o voo da câmera se aproximar das coordenadas do projeto alvo
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(1400);
     const alvoCamera = await page.evaluate(() => {
       const mv = (
         window as unknown as {

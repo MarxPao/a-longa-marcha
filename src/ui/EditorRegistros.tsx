@@ -6,7 +6,13 @@ import { salvarBackupJsonEmPastaEscolhida } from './backupArquivoSistema';
 
 type AbaEditor = 'setores' | 'estagios' | 'config' | 'dados' | 'terreno';
 
-export function EditorRegistros(): React.JSX.Element | null {
+export interface PropriedadesEditorRegistros {
+  aoCarregarDadosExemplo?: () => void;
+}
+
+export function EditorRegistros({
+  aoCarregarDadosExemplo,
+}: PropriedadesEditorRegistros = {}): React.JSX.Element | null {
   const modalAberto = useCampanhaStore((s) => s.modalAberto);
   const fecharModal = useCampanhaStore((s) => s.fecharModal);
   const dump = useCampanhaStore((s) => s.dump);
@@ -373,6 +379,22 @@ export function EditorRegistros(): React.JSX.Element | null {
                       style={{ display: 'none' }}
                     />
                   </label>
+
+                  {aoCarregarDadosExemplo && (
+                    <button
+                      type="button"
+                      className="botao-campanha"
+                      data-testid="botao-carregar-dados-exemplo"
+                      onClick={() => {
+                        aoCarregarDadosExemplo();
+                        setStatusBackupPasta(
+                          'Dados de exemplo (seed/demo.json) carregados pelo repositório.'
+                        );
+                      }}
+                    >
+                      🌱 Carregar dados de exemplo (seed/demo.json)
+                    </button>
+                  )}
                 </div>
                 {statusBackupPasta && (
                   <span

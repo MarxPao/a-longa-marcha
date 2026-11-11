@@ -15,6 +15,7 @@ import {
   EsquemaLigacao,
   EsquemaMovimento,
   EsquemaPreRequisitoTecnologia,
+  EsquemaProduto,
   EsquemaProjeto,
   EsquemaRegistroDeHoras,
   EsquemaSaldo,
@@ -38,6 +39,8 @@ export function validarRegistro<T>(tabela: TabelaColecao, dados: unknown): T {
       return EsquemaSetor.parse(dados) as unknown as T;
     case 'projetos':
       return EsquemaProjeto.parse(dados) as unknown as T;
+    case 'produtos':
+      return EsquemaProduto.parse(dados) as unknown as T;
     case 'frentes':
       return EsquemaFrente.parse(dados) as unknown as T;
     case 'tarefas':

@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   criarDumpVazio,
   ErroValidacaoImportacao,
+  VERSAO_ESQUEMA_ATUAL,
   type Lancamento,
+  type Produto,
   type Projeto,
   type Setor,
 } from '../../src/domain';
@@ -80,8 +82,8 @@ function executarSuiteContratoRepositorio(
       repo = await fabrica();
     });
 
-    it('retorna versaoEsquema = 1 por padrão', async () => {
-      expect(await repo.versaoEsquema()).toBe(1);
+    it('retorna versaoEsquema = VERSAO_ESQUEMA_ATUAL (2) por padrão', async () => {
+      expect(await repo.versaoEsquema()).toBe(VERSAO_ESQUEMA_ATUAL);
     });
 
     it('Caso 7.2 — exportar, importar, exportar: os dois JSON são idênticos (round-trip)', async () => {
@@ -216,7 +218,7 @@ function executarSuiteContratoRepositorio(
 
       await repo.importar(fixtureV0);
 
-      expect(await repo.versaoEsquema()).toBe(1);
+      expect(await repo.versaoEsquema()).toBe(VERSAO_ESQUEMA_ATUAL);
       const projetoMigrado = await repo.obter<Projeto>('projetos', 'proj-legado-v0');
       expect(projetoMigrado).not.toBeNull();
       expect(projetoMigrado?.nome).toBe('Projeto Legado V0');
@@ -224,6 +226,30 @@ function executarSuiteContratoRepositorio(
 
       const setoresMigrados = await repo.listar<Setor>('setores');
       expect(setoresMigrados).toHaveLength(1);
+    });
+
+    it('Seção 5 — migração v1 -> v2 cria um Produto padrão por projeto com receita com o nome do projeto', async () => {
+      const { setor, projeto, lancamento } = criarFixturesIniciais();
+      const fixtureV1 = {
+        ...criarDumpVazio(),
+        versaoEsquema: 1,
+        meta: {
+          ...criarDumpVazio().meta,
+          versaoEsquema: 1,
+        },
+        setores: [setor],
+        projetos: [projeto],
+        lancamentos: [lancamento],
+        produtos: undefined,
+      };
+
+      await repo.importar(fixtureV1);
+      expect(await repo.versaoEsquema()).toBe(2);
+
+      const produtosMigrados = await repo.listar<Produto>('produtos');
+      expect(produtosMigrados).toHaveLength(1);
+      expect(produtosMigrados[0]?.projetoId).toBe(projeto.id);
+      expect(produtosMigrados[0]?.nome).toBe(projeto.nome);
     });
   });
 }

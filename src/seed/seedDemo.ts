@@ -1,11 +1,12 @@
 import {
   criarDumpVazio,
+  inferirTipoLojaPadrao,
   type DumpBanco,
   type Instantaneo,
   type UUID,
 } from '../domain';
 
-export type PerfilSeed = 'pequeno' | 'real' | 'carga' | 'caos';
+export type PerfilSeed = 'pequeno' | 'real' | 'carga' | 'caos' | 'demo';
 
 function criarPrng(semente: string): () => number {
   let h = 2166136261;
@@ -69,10 +70,12 @@ export function seedDemo(perfil: PerfilSeed, semente: string): DumpBanco {
     });
   });
 
-  // 2. Tipos de Ligação
+  // 2. Tipos de Ligação (Seção 4.5: "fornece insumo", "reaproveita código", "mesmo cliente" e "financia")
   const tiposLigacaoDef = [
     { id: 'tipo-depende', nome: 'depende de', cor: '#8E1F1A', direcional: true },
     { id: 'tipo-insumo', nome: 'fornece insumo', cor: '#7FA35A', direcional: true },
+    { id: 'tipo-codigo', nome: 'reaproveita código', cor: '#6FA3C7', direcional: true },
+    { id: 'tipo-cliente', nome: 'mesmo cliente', cor: '#D0B25C', direcional: false },
     { id: 'tipo-financia', nome: 'financia', cor: '#B8923A', direcional: true },
   ];
 
@@ -93,7 +96,11 @@ export function seedDemo(perfil: PerfilSeed, semente: string): DumpBanco {
   let totalTarefas = 80;
   let totalSemanas = 12;
 
-  if (perfil === 'real') {
+  if (perfil === 'demo') {
+    totalProjetos = 40;
+    totalTarefas = 160;
+    totalSemanas = 24;
+  } else if (perfil === 'real') {
     totalProjetos = 60;
     totalTarefas = 600;
     totalSemanas = 52;
@@ -117,7 +124,10 @@ export function seedDemo(perfil: PerfilSeed, semente: string): DumpBanco {
     const zP = Math.round((rand() * 200 - 100) * 10) / 10;
 
     let nomeProjeto = `Projeto ${i + 1} (${setor.nome})`;
-    if (perfil === 'caos') {
+    // Critério de Aceite 1: Projeto de exemplo "Padaria do Zé" (setor Produção alimentícia)
+    if (perfil !== 'caos' && i === 1) {
+      nomeProjeto = 'Padaria do Zé';
+    } else if (perfil === 'caos') {
       if (i === 0) {
         nomeProjeto = 'A'.repeat(500); // 500 caracteres
       } else if (i === 1) {
@@ -142,6 +152,143 @@ export function seedDemo(perfil: PerfilSeed, semente: string): DumpBanco {
       notas: `Notas estratégicas do projeto ${i + 1}`,
       notaLicoes: null,
     });
+  }
+
+  // 3B. Produtos e Ligações (Seção 4.3, 4.5, 5 e Etapa 11: 70 produtos e 60 ligações no perfil demo)
+  const totalProdutos =
+    perfil === 'demo'
+      ? 70
+      : perfil === 'carga'
+        ? 120
+        : perfil === 'real'
+          ? 85
+          : Math.max(12, totalProjetos);
+
+  const catalogoTiposPorSetor: Record<
+    string,
+    { tipoLoja: string; icone: string; nomes: string[]; categoria: string }
+  > = {
+    'setor-1': {
+      tipoLoja: 'armazem_graos',
+      icone: 'saco_graos',
+      nomes: ['Arroz Imperial', 'Trigo Dourado', 'Soja do Vale', 'Milho Selecionado'],
+      categoria: 'Grãos',
+    },
+    'setor-2': {
+      tipoLoja: 'padaria',
+      icone: 'pao',
+      nomes: ['Pão', 'Fornada Artesanal', 'Biscoito de Gergelim', 'Massa Fresca'],
+      categoria: 'Alimentos',
+    },
+    'setor-3': {
+      tipoLoja: 'taverna',
+      icone: 'barril',
+      nomes: ['Chá de Jade', 'Cerveja de Trigo', 'Hidromel Imperial', 'Licor de Ameixa'],
+      categoria: 'Bebidas',
+    },
+    'setor-4': {
+      tipoLoja: 'laboratorio_alquimista',
+      icone: 'frasco',
+      nomes: ['Reagente Puro', 'Catalisador Verde', 'Resina Protetora', 'Solvente Cítrico'],
+      categoria: 'Químicos',
+    },
+    'setor-5': {
+      tipoLoja: 'ferraria',
+      icone: 'engrenagem',
+      nomes: ['Controlador PLC', 'Atuador Pneumático', 'Esteira Modular', 'Sensor Óptico'],
+      categoria: 'Automação',
+    },
+    'setor-6': {
+      tipoLoja: 'ferraria',
+      icone: 'engrenagem',
+      nomes: ['Braço Articulado', 'Rover de Inspeção', 'Garra de Precisão', 'Servo Motor'],
+      categoria: 'Robótica',
+    },
+    'setor-7': {
+      tipoLoja: 'casa_escribas',
+      icone: 'pergaminho',
+      nomes: ['Plataforma Leitura', 'Simulador de Física', 'Atlas Interativo', 'Tutor IA'],
+      categoria: 'Educação',
+    },
+    'setor-8': {
+      tipoLoja: 'casa_escribas',
+      icone: 'pergaminho',
+      nomes: ['ERP Imperial', 'Motor Contábil', 'API de Logística', 'Painel Analítico'],
+      categoria: 'SaaS',
+    },
+    'setor-9': {
+      tipoLoja: 'balanca_cambio',
+      icone: 'balanca',
+      nomes: ['Intermediação B2B', 'Feira do Porto', 'Rota de Atacado', 'Câmbio Mercantil'],
+      categoria: 'Comércio',
+    },
+  };
+
+  for (let pIdx = 0; pIdx < totalProdutos; pIdx++) {
+    const proj = dump.projetos[pIdx % dump.projetos.length]!;
+    const infoCat = catalogoTiposPorSetor[proj.setorId] ?? {
+      ...inferirTipoLojaPadrao(proj.nome, proj.setorId),
+      nomes: ['Produto Principal'],
+      categoria: 'Geral',
+    };
+
+    const ehPadariaDoZePrimeiroProduto = proj.nome === 'Padaria do Zé' && pIdx === 1;
+    const nomeProd = ehPadariaDoZePrimeiroProduto
+      ? 'Pão'
+      : `${infoCat.nomes[Math.floor(pIdx / dump.projetos.length) % infoCat.nomes.length]} ${pIdx + 1}`;
+
+    dump.produtos.push({
+      id: `prod-${pIdx + 1}`,
+      criadoEm: instanteBase,
+      atualizadoEm: instanteBase,
+      arquivadoEm: null,
+      projetoId: proj.id,
+      nome: nomeProd,
+      categoria: infoCat.categoria,
+      tipoLoja: ehPadariaDoZePrimeiroProduto ? 'padaria' : infoCat.tipoLoja,
+      icone: ehPadariaDoZePrimeiroProduto ? 'pao' : infoCat.icone,
+      ativo: true,
+    });
+  }
+
+  const totalLigacoes =
+    perfil === 'demo'
+      ? 60
+      : perfil === 'carga'
+        ? 180
+        : perfil === 'real'
+          ? 75
+          : Math.max(8, totalProjetos);
+
+  const tiposFluxoLigacao = ['tipo-insumo', 'tipo-codigo', 'tipo-cliente', 'tipo-financia'];
+  const paresUsados = new Set<string>();
+  let ligCount = 0;
+  let passoTentativa = 0;
+  while (ligCount < totalLigacoes && passoTentativa < totalLigacoes * 10) {
+    const idxA = passoTentativa % dump.projetos.length;
+    const salto = (Math.floor(passoTentativa / dump.projetos.length) + 1) % dump.projetos.length;
+    const idxB = (idxA + Math.max(1, salto)) % dump.projetos.length;
+    passoTentativa++;
+    if (idxA === idxB) continue;
+
+    const origem = dump.projetos[idxA]!;
+    const destino = dump.projetos[idxB]!;
+    const chave = `${origem.id}->${destino.id}`;
+    if (paresUsados.has(chave)) continue;
+    paresUsados.add(chave);
+
+    const forcas: (1 | 2 | 3)[] = [1, 2, 3];
+    dump.ligacoes.push({
+      id: `lig-${ligCount + 1}`,
+      criadoEm: instanteBase,
+      atualizadoEm: instanteBase,
+      arquivadoEm: null,
+      origemId: origem.id,
+      destinoId: destino.id,
+      tipoId: tiposFluxoLigacao[ligCount % tiposFluxoLigacao.length]!,
+      forca: forcas[ligCount % forcas.length]!,
+    });
+    ligCount++;
   }
 
   // 4. Frentes de Trabalho
@@ -225,26 +372,49 @@ export function seedDemo(perfil: PerfilSeed, semente: string): DumpBanco {
     });
   }
 
-  // 7. Lançamentos Financeiros
-  const totalLancamentos = Math.max(10, Math.floor(totalProjetos * 1.5));
-  for (let l = 0; l < totalLancamentos; l++) {
-    const proj = dump.projetos[l % dump.projetos.length]!;
-    let valorCentavos = Math.round(10000 + rand() * 800000);
-    if (perfil === 'caos' && l === 0) {
-      valorCentavos = 0; // valor zero patológico
+  // 7. Lançamentos Financeiros (vinculados aos produtos para alimentar lojas e fluxos)
+  let seqLanc = 1;
+  for (let pIdx = 0; pIdx < dump.produtos.length; pIdx++) {
+    const prod = dump.produtos[pIdx]!;
+    let valorReceita = Math.round(90000 + rand() * 850000);
+    if (prod.nome === 'Pão') {
+      valorReceita = 480000; // R$ 4.800,00 de receita garantida para a Padaria do Zé
+    } else if (perfil === 'caos' && pIdx === 0) {
+      valorReceita = 0; // valor zero patológico no perfil caos
     }
 
     dump.lancamentos.push({
-      id: `lanc-${l + 1}`,
+      id: `lanc-${seqLanc++}`,
       criadoEm: instanteBase,
       atualizadoEm: instanteBase,
       arquivadoEm: null,
-      data: '2026-10-28',
-      tipo: l % 2 === 0 ? 'receita' : 'custo',
-      valorCentavos,
+      data: '2026-10-15',
+      tipo: 'receita',
+      valorCentavos: valorReceita,
+      categoriaId: 'cat-geral',
+      projetoId: prod.projetoId,
+      produtoId: prod.id,
+      clienteId: dump.clientes[pIdx % dump.clientes.length]?.id ?? null,
+      recorrencia: null,
+      origemRecorrenciaId: null,
+    });
+  }
+
+  for (let cIdx = 0; cIdx < dump.projetos.length; cIdx++) {
+    const proj = dump.projetos[cIdx]!;
+    const valorCusto = Math.round(35000 + rand() * 240000);
+    dump.lancamentos.push({
+      id: `lanc-${seqLanc++}`,
+      criadoEm: instanteBase,
+      atualizadoEm: instanteBase,
+      arquivadoEm: null,
+      data: '2026-10-15',
+      tipo: 'custo',
+      valorCentavos: valorCusto,
       categoriaId: 'cat-geral',
       projetoId: proj.id,
-      clienteId: dump.clientes[l % dump.clientes.length]?.id ?? null,
+      produtoId: null,
+      clienteId: null,
       recorrencia: null,
       origemRecorrenciaId: null,
     });

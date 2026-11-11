@@ -1,10 +1,13 @@
 import * as THREE from 'three';
+import { PALETA_MAPA } from '../config/layout';
 import type { Projeto, UUID } from '../domain';
 import type { DerivadosProjeto, ResultadoFase } from '../engine';
 import {
   construirGeometriasCidades,
+  criarGeometriaGeneralTotalWar,
   type NivelMaturidadeVisual,
 } from './cidadesGeometria';
+import { obterMaterialEdificiosCampanha } from './materiaisAvancados';
 import {
   calcularCorCidadePorLente,
   type DadosContextoLente,
@@ -42,20 +45,30 @@ export class GerenciadorCidadesInstanciadas {
   private malhaBandeirasCaidas: THREE.InstancedMesh | null = null;
   private malhaFumacaCritica: THREE.InstancedMesh | null = null;
 
+  // Generais / Comandantes 3D de guarnição (estilo Total War: Three Kingdoms)
+  private malhaGenerais: THREE.InstancedMesh | null = null;
+  private capacidadeGenerais = 64;
+
+  // Placas de identificação flutuantes estratégicas (Total War Billboard Banners)
+  private readonly grupoPlacasEstrategicas: THREE.Group;
+  private spritesPlacas = new Map<UUID, THREE.Sprite>();
+  private cacheTexturasPlacas = new Map<string, THREE.CanvasTexture>();
+
   constructor(cena: THREE.Scene) {
     this.cena = cena;
     this.geometrias = construirGeometriasCidades();
 
-    this.materialCidades = new THREE.MeshStandardMaterial({
-      roughness: 0.65,
-      metalness: 0.15,
-      vertexColors: true,
-    });
+    this.materialCidades = obterMaterialEdificiosCampanha();
+
+    this.grupoPlacasEstrategicas = new THREE.Group();
+    this.grupoPlacasEstrategicas.name = 'grupo-placas-estrategicas-total-war';
+    this.cena.add(this.grupoPlacasEstrategicas);
 
     this.inicializarMalhas();
     this.criarIndicadorSelecao();
     this.criarMalhaLuzesPd(this.capacidadeLuzesPd);
     this.criarMalhasFormasSaude(512);
+    this.criarMalhaGenerais(this.capacidadeGenerais);
   }
 
   private inicializarMalhas(): void {
@@ -67,6 +80,7 @@ export class GerenciadorCidadesInstanciadas {
       const instMesh = new THREE.InstancedMesh(geo, this.materialCidades, capacidadePadrao);
       instMesh.name = `cidades-instanciadas-nivel-${nivel}`;
       instMesh.count = 0;
+      instMesh.frustumCulled = false;
       instMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       if (instMesh.instanceColor) {
         instMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
@@ -113,6 +127,7 @@ export class GerenciadorCidadesInstanciadas {
     this.malhaLuzesPd = new THREE.InstancedMesh(geoHalo, matHalo, capacidade);
     this.malhaLuzesPd.name = 'luzes-azuis-pd-cidades';
     this.malhaLuzesPd.count = 0;
+    this.malhaLuzesPd.frustumCulled = false;
     this.malhaLuzesPd.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.cena.add(this.malhaLuzesPd);
     this.capacidadeLuzesPd = capacidade;
@@ -130,6 +145,7 @@ export class GerenciadorCidadesInstanciadas {
     );
     this.malhaBandeirasErguidas.name = 'forma-saude-bandeira-erguida';
     this.malhaBandeirasErguidas.count = 0;
+    this.malhaBandeirasErguidas.frustumCulled = false;
     this.malhaBandeirasErguidas.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.cena.add(this.malhaBandeirasErguidas);
 
@@ -145,6 +161,7 @@ export class GerenciadorCidadesInstanciadas {
     );
     this.malhaBandeirasCaidas.name = 'forma-saude-bandeira-caida';
     this.malhaBandeirasCaidas.count = 0;
+    this.malhaBandeirasCaidas.frustumCulled = false;
     this.malhaBandeirasCaidas.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.cena.add(this.malhaBandeirasCaidas);
 
@@ -163,8 +180,117 @@ export class GerenciadorCidadesInstanciadas {
     );
     this.malhaFumacaCritica.name = 'forma-saude-fumaca-critica';
     this.malhaFumacaCritica.count = 0;
+    this.malhaFumacaCritica.frustumCulled = false;
     this.malhaFumacaCritica.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.cena.add(this.malhaFumacaCritica);
+  }
+
+  private criarMalhaGenerais(capacidade: number): void {
+    const geoGen = criarGeometriaGeneralTotalWar();
+    const matGen = obterMaterialEdificiosCampanha();
+    this.malhaGenerais = new THREE.InstancedMesh(geoGen, matGen, capacidade);
+    this.malhaGenerais.name = 'generais-total-war-instanciados';
+    this.malhaGenerais.count = 0;
+    this.malhaGenerais.frustumCulled = false;
+    this.malhaGenerais.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    if (this.malhaGenerais.instanceColor) {
+      this.malhaGenerais.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    }
+    this.cena.add(this.malhaGenerais);
+  }
+
+  private obterOuCriarTexturaPlaca(
+    nome: string,
+    nivel: number,
+    saude: number,
+    corSetorHex: string
+  ): THREE.CanvasTexture | null {
+    if (typeof document === 'undefined') return null;
+
+    const chave = `${nome}:${nivel}:${Math.round(saude)}:${corSetorHex}`;
+    const existente = this.cacheTexturasPlacas.get(chave);
+    if (existente) return existente;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Fundo em laca escura com pergaminho envelhecido
+    ctx.fillStyle = 'rgba(26, 23, 20, 0.92)';
+    ctx.beginPath();
+    ctx.roundRect(8, 8, 496, 112, 12);
+    ctx.fill();
+
+    // Moldura dupla de bronze e ouro
+    ctx.strokeStyle = '#B8923A';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(184, 146, 58, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(14, 14, 484, 100);
+
+    // Brasão do setor à esquerda
+    ctx.fillStyle = corSetorHex || '#3E7C68';
+    ctx.beginPath();
+    ctx.arc(58, 64, 30, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#FAF3E0';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#FAF3E0';
+    ctx.font = 'bold 22px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('漢', 58, 64);
+
+    // Título da Cidade (Nome em caixa alta)
+    ctx.fillStyle = '#FAF3E0';
+    ctx.font = 'bold 30px "Cinzel", "Georgia", "Noto Serif", serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    const nomeExibicao = nome.length > 16 ? nome.slice(0, 15) + '…' : nome.toUpperCase();
+    ctx.fillText(nomeExibicao, 106, 56);
+
+    // Subtítulo: Nível e Fase
+    const nomesFase: Record<number, string> = {
+      1: 'FAÍSCA',
+      2: 'EXPEDIÇÃO',
+      3: 'ASSENTAMENTO',
+      4: 'VILA',
+      5: 'CIDADE',
+      6: 'METRÓPOLE',
+      7: 'LEGADO',
+      0: 'RUÍNAS',
+    };
+    const faseTexto = nomesFase[nivel] ?? 'PROJETO';
+    ctx.fillStyle = '#D6C29E';
+    ctx.font = '600 18px "Cinzel", "Segoe UI", sans-serif';
+    ctx.fillText(`NÍVEL ${nivel} • ${faseTexto}`, 106, 92);
+
+    // Indicador de Saúde / Eficiência à direita
+    const corSaude = saude >= 70 ? '#3E7C68' : saude >= 40 ? '#D09B2C' : '#8E1F1A';
+    ctx.fillStyle = corSaude;
+    ctx.beginPath();
+    ctx.roundRect(406, 36, 82, 54, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#FAF3E0';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#FAF3E0';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.round(saude)}%`, 447, 63);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    this.cacheTexturasPlacas.set(chave, tex);
+    return tex;
   }
 
   private garantirCapacidade(nivel: NivelMaturidadeVisual, quantidadeNecessaria: number): void {
@@ -186,6 +312,7 @@ export class GerenciadorCidadesInstanciadas {
     const novaMalha = new THREE.InstancedMesh(geo, this.materialCidades, novaCap);
     novaMalha.name = `cidades-instanciadas-nivel-${nivel}`;
     novaMalha.count = 0;
+    novaMalha.frustumCulled = false;
     novaMalha.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     if (novaMalha.instanceColor) {
       novaMalha.instanceColor.setUsage(THREE.DynamicDrawUsage);
@@ -221,7 +348,8 @@ export class GerenciadorCidadesInstanciadas {
     derivados: Map<UUID, DerivadosProjeto>,
     obterAlturaTerreno: (x: number, z: number) => number,
     projetoSelecionadoId: UUID | null,
-    contextoLente?: DadosContextoLente
+    contextoLente?: DadosContextoLente,
+    projetosDestacadosFiltro?: ReadonlySet<UUID> | null
   ): void {
     this.instanciasPorProjetoId.clear();
     this.projetosPorChaveMalha.clear();
@@ -258,26 +386,39 @@ export class GerenciadorCidadesInstanciadas {
         const p = listaProjetos[i]!;
         const y = obterAlturaTerreno(p.x, p.z);
 
-        // Variação determinística leve de rotação pelo hash do ID
+        // Variação determinística por instância pelo hash do ID (Seção 4 - H1)
         let hash = 0;
         for (let c = 0; c < p.id.length; c++) {
-          hash = (hash * 31 + p.id.charCodeAt(c)) & 0xffff;
+          hash = (hash * 31 + p.id.charCodeAt(c)) & 0xffffff;
         }
-        const anguloRotacao = (hash / 0xffff) * Math.PI * 0.5 - Math.PI * 0.25;
+
+        // 1. Rotação em múltiplos de 90° mais jitter de ±3°
+        const quadrante90 = (hash % 4) * (Math.PI / 2);
+        const jitterRotRad = (((hash >> 4) % 100) / 100 - 0.5) * (6 * Math.PI / 180);
+        const anguloRotacao = quadrante90 + jitterRotRad;
+
+        // 2. Variação de escala de ±8%
+        const jitterEscala = 1.0 + (((hash >> 8) % 100) / 100 - 0.5) * 0.16;
 
         posTemp.set(p.x, y, p.z);
         rotTemp.set(0, anguloRotacao, 0);
         quatTemp.setFromEuler(rotTemp);
 
-        // Escala proporcional ao nível de maturidade
-        const fatorEscala = nivel === 0 ? 0.9 : 0.85 + nivel * 0.08;
-        scaleTemp.set(fatorEscala, fatorEscala, fatorEscala);
+        const atenuadaPorFiltro =
+          projetosDestacadosFiltro !== undefined &&
+          projetosDestacadosFiltro !== null &&
+          !projetosDestacadosFiltro.has(p.id);
+        // Escala modular proporcional ao nível da cidade (mantendo coerência com o kit arquitetural)
+        const escalaBase = Math.max(0.9, 0.72 + nivel * 0.16) * jitterEscala * (atenuadaPorFiltro ? 0.78 : 1.0);
+        scaleTemp.set(escalaBase, escalaBase, escalaBase);
 
         matrixTemp.compose(posTemp, quatTemp, scaleTemp);
         malha.setMatrixAt(i, matrixTemp);
 
         // Determinação da cor pela lente ativa (Seção 4.6)
-        if (contextoLente) {
+        if (atenuadaPorFiltro) {
+          corTemp.set('#9E9689');
+        } else if (contextoLente) {
           const corHex = calcularCorCidadePorLente(p, contextoLente);
           corTemp.set(corHex);
         } else {
@@ -292,6 +433,20 @@ export class GerenciadorCidadesInstanciadas {
             corTemp.set('#8E1F1A'); // Crítico: Laca
           }
         }
+
+        // 3. Jitter HSL por instância: matiz ±4%, saturação ±8%, luminância ±10% (Seção 4 - H1)
+        if (!atenuadaPorFiltro) {
+          const hsl = { h: 0, s: 0, l: 0 };
+          corTemp.getHSL(hsl);
+          const jitterH = (((hash >> 12) % 100) / 100 - 0.5) * 0.08; // ±4%
+          const jitterS = (((hash >> 16) % 100) / 100 - 0.5) * 0.16; // ±8%
+          const jitterL = (((hash >> 20) % 100) / 100 - 0.5) * 0.20; // ±10%
+          hsl.h = (hsl.h + jitterH + 1.0) % 1.0;
+          hsl.s = Math.max(0.1, Math.min(1.0, hsl.s + jitterS));
+          hsl.l = Math.max(0.2, Math.min(0.85, hsl.l + jitterL));
+          corTemp.setHSL(hsl.h, hsl.s, hsl.l);
+        }
+
         malha.setColorAt(i, corTemp);
 
         // Registro de consulta
@@ -394,6 +549,105 @@ export class GerenciadorCidadesInstanciadas {
       this.malhaBandeirasCaidas.instanceMatrix.needsUpdate = true;
       this.malhaFumacaCritica.instanceMatrix.needsUpdate = true;
     }
+
+    // Atualiza Generais 3D Total War ao lado de cada cidade ativa
+    if (this.malhaGenerais) {
+      const matrizGen = new THREE.Matrix4();
+      const posGen = new THREE.Vector3();
+      const rotGen = new THREE.Euler();
+      const quatGen = new THREE.Quaternion();
+      const scaleGen = new THREE.Vector3(2.4, 2.4, 2.4);
+      let countGen = 0;
+
+      for (const proj of projetos) {
+        if (proj.arquivadoEm !== null) continue;
+        if (countGen >= this.capacidadeGenerais) break;
+
+        const infoDerivado = derivados.get(proj.id);
+        const nivel = this.mapearFaseParaNivel(infoDerivado?.fase, false);
+        const raioVisual = Math.max(5.5, 4.2 + nivel * 1.1);
+        const offsetGenX = raioVisual * 1.15;
+        const offsetGenZ = raioVisual * 0.45;
+        const gx = proj.x + offsetGenX;
+        const gz = proj.z + offsetGenZ;
+        const gy = obterAlturaTerreno(gx, gz);
+
+        const altGen = Math.max(1.8, 1.3 + nivel * 0.28);
+        scaleGen.set(altGen, altGen, altGen);
+
+        posGen.set(gx, gy, gz);
+        rotGen.set(0, Math.atan2(offsetGenZ, offsetGenX) + Math.PI * 0.5, 0);
+        quatGen.setFromEuler(rotGen);
+        matrizGen.compose(posGen, quatGen, scaleGen);
+
+        this.malhaGenerais.setMatrixAt(countGen, matrizGen);
+        if (this.malhaGenerais.instanceColor) {
+          const corGen = new THREE.Color(
+            contextoLente ? calcularCorCidadePorLente(proj, contextoLente) : PALETA_MAPA.ouro
+          );
+          this.malhaGenerais.setColorAt(countGen, corGen);
+        }
+        countGen++;
+      }
+
+      this.malhaGenerais.count = countGen;
+      this.malhaGenerais.instanceMatrix.needsUpdate = true;
+      if (this.malhaGenerais.instanceColor) {
+        this.malhaGenerais.instanceColor.needsUpdate = true;
+      }
+    }
+
+    // Atualiza Placas Estratégicas Flutuantes estilo Total War
+    const idsAtivos = new Set<UUID>();
+    for (const proj of projetos) {
+      if (proj.arquivadoEm !== null) continue;
+      idsAtivos.add(proj.id);
+
+      const infoDerivado = derivados.get(proj.id);
+      const nivel = this.mapearFaseParaNivel(infoDerivado?.fase, false);
+      const saude = infoDerivado?.saude.pontuacao ?? 100;
+      const corSetorHex = contextoLente
+        ? calcularCorCidadePorLente(proj, contextoLente)
+        : PALETA_MAPA.jade;
+
+      const textura = this.obterOuCriarTexturaPlaca(proj.nome, nivel, saude, corSetorHex);
+      if (!textura) continue;
+
+      let sprite = this.spritesPlacas.get(proj.id);
+      if (!sprite) {
+        const matSprite = new THREE.SpriteMaterial({
+          map: textura,
+          transparent: true,
+          depthTest: false,
+        });
+        sprite = new THREE.Sprite(matSprite);
+        sprite.name = `placa-estrategica-${proj.id}`;
+        this.grupoPlacasEstrategicas.add(sprite);
+        this.spritesPlacas.set(proj.id, sprite);
+      } else {
+        sprite.material.map = textura;
+        sprite.material.needsUpdate = true;
+      }
+
+      const y = obterAlturaTerreno(proj.x, proj.z);
+      const ehSelecionado = proj.id === projetoSelecionadoId;
+      const escalaL = ehSelecionado ? 15 : 12;
+      const escalaA = ehSelecionado ? 3.75 : 3.0;
+
+      const altPlaca = Math.max(7.0, 5.0 + nivel * 1.2);
+      sprite.scale.set(escalaL, escalaA, 1);
+      sprite.position.set(proj.x, y + altPlaca, proj.z);
+      sprite.visible = true;
+    }
+
+    // Remove sprites de cidades arquivadas ou excluídas
+    for (const [id, sp] of this.spritesPlacas.entries()) {
+      if (!idsAtivos.has(id)) {
+        this.grupoPlacasEstrategicas.remove(sp);
+        sp.material.dispose();
+        this.spritesPlacas.delete(id);
+      }
+    }
   }
 
   public obterContagemFormasSaude(): {
@@ -455,6 +709,25 @@ export class GerenciadorCidadesInstanciadas {
         (malhaForma.material as THREE.Material).dispose();
       }
     }
+
+    if (this.malhaGenerais) {
+      this.cena.remove(this.malhaGenerais);
+      this.malhaGenerais.geometry.dispose();
+      (this.malhaGenerais.material as THREE.Material).dispose();
+      this.malhaGenerais = null;
+    }
+
+    for (const sp of this.spritesPlacas.values()) {
+      this.grupoPlacasEstrategicas.remove(sp);
+      sp.material.dispose();
+    }
+    this.spritesPlacas.clear();
+
+    for (const tex of this.cacheTexturasPlacas.values()) {
+      tex.dispose();
+    }
+    this.cacheTexturasPlacas.clear();
+    this.cena.remove(this.grupoPlacasEstrategicas);
 
     for (const geo of Object.values(this.geometrias)) {
       geo.dispose();

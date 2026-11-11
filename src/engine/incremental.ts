@@ -41,6 +41,7 @@ export function projetosInvalidados(indice: IndiceEstado, m: MudancaDados): Set<
         break;
       }
       case 'frentes':
+      case 'produtos':
       case 'eventos':
       case 'vinculosCliente':
         add(campo(r, 'projetoId'));

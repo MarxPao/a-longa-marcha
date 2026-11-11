@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Ligacao, Projeto } from '../domain';
-import { MapView } from '../map';
+import type { Ligacao, Projeto, UUID } from '../domain';
+import type { ResultadoLayoutMundo } from '../engine';
+import { MapView, type InfoHoverElementoMapa, type InfoHudEscalaCamera } from '../map';
+import { seedDemo } from '../seed';
 import { useCampanhaStore, useTerrenoFase0Store } from '../store';
 import { textosPtBr } from '../textos/pt-BR';
 import {
@@ -18,10 +20,30 @@ import {
   TelaArvoreTecnologica,
   TelaEstoqueGlobal,
   VistaLista,
+  formatarMoeda,
 } from '../ui';
+import { DebugMateriaisView } from './DebugMateriaisView';
+import { FatiaVerticalH2View } from './FatiaVerticalH2View';
 import '../ui/tema.css';
 
 export function App(): React.JSX.Element {
+  const [modoVisual, setModoVisual] = useState<'mapa' | 'h2' | 'materials'>(() => {
+    if (typeof window === 'undefined') return 'mapa';
+    const params = new URLSearchParams(window.location.search);
+    const dbg = params.get('debug');
+    if (dbg === 'materials') return 'materials';
+    if (dbg === 'h2' || dbg === 'fatia-vertical') return 'h2';
+    return 'mapa';
+  });
+
+  if (modoVisual === 'materials') {
+    return <DebugMateriaisView />;
+  }
+
+  if (modoVisual === 'h2') {
+    return <FatiaVerticalH2View onVoltar={() => setModoVisual('mapa')} />;
+  }
+
   const containerMapaRef = useRef<HTMLDivElement | null>(null);
   const mapViewRef = useRef<MapView | null>(null);
 
@@ -41,6 +63,14 @@ export function App(): React.JSX.Element {
   const semanaAtual = useCampanhaStore((s) => s.semanaAtual);
   const projetoSelecionadoId = useCampanhaStore((s) => s.projetoSelecionadoId);
   const selecionarProjeto = useCampanhaStore((s) => s.selecionarProjeto);
+  const selecionarLojaNoMapa = useCampanhaStore((s) => s.selecionarLojaNoMapa);
+  const filtroMapaSetorId = useCampanhaStore((s) => s.filtroMapaSetorId);
+  const filtroMapaProdutoId = useCampanhaStore((s) => s.filtroMapaProdutoId);
+  const definirFiltroMapaSetor = useCampanhaStore((s) => s.definirFiltroMapaSetor);
+  const definirFiltroMapaProduto = useCampanhaStore((s) => s.definirFiltroMapaProduto);
+  const produtosRecemCriadosIds = useCampanhaStore((s) => s.produtosRecemCriadosIds);
+  const produtosRecemArquivadosIds = useCampanhaStore((s) => s.produtosRecemArquivadosIds);
+  const importarJson = useCampanhaStore((s) => s.importarJson);
   const abrirModal = useCampanhaStore((s) => s.abrirModal);
   const fecharModal = useCampanhaStore((s) => s.fecharModal);
   const desfazer = useCampanhaStore((s) => s.desfazer);
@@ -52,8 +82,11 @@ export function App(): React.JSX.Element {
     x: 0,
     z: 0,
   });
+  const [hoverMapa, setHoverMapa] = useState<InfoHoverElementoMapa | null>(null);
+  const [hudCamera, setHudCamera] = useState<InfoHudEscalaCamera | null>(null);
+  const [layoutMundo, setLayoutMundo] = useState<ResultadoLayoutMundo | null>(null);
 
-  // Inicializa mapa Three.js com suporte completo a cidades procedurais e interação
+  // Inicializa mapa Three.js com suporte completo a cidades procedurais, Metrópole Central e fluxos
   useEffect(() => {
     const elemento = containerMapaRef.current;
     if (!elemento) return;
@@ -66,11 +99,31 @@ export function App(): React.JSX.Element {
       },
       aoSelecionarProjeto: (projetoId) => {
         selecionarProjeto(projetoId);
+        if (projetoId && mapViewRef.current) {
+          const layout = mapViewRef.current.obterLayoutMundo();
+          const cid = layout?.cidades.find((c) => c.projetoId === projetoId);
+          if (cid) {
+            setAlvoCameraMinimapa({ x: cid.x, z: cid.z });
+          }
+        }
+      },
+      aoClicarLoja: (loja) => {
+        selecionarLojaNoMapa(loja.projetoId, loja.produtoId);
+      },
+      aoHoverElementoMapa: (info) => {
+        setHoverMapa(info);
+      },
+      aoAtualizarHudCamera: (hud) => {
+        setHudCamera(hud);
+      },
+      aoAtualizarLayout: (layout) => {
+        setLayoutMundo(layout);
       },
       aoMoverProjeto: (projetoId, novoX, novoZ) => {
         void useCampanhaStore.getState().atualizarEntidade<Projeto>('projetos', projetoId, {
           x: novoX,
           z: novoZ,
+          posicao: { x: novoX, z: novoZ },
         });
       },
       aoLigarProjetos: (origemId, destinoId) => {
@@ -102,14 +155,17 @@ export function App(): React.JSX.Element {
         delete (window as unknown as { __MAP_VIEW__?: MapView }).__MAP_VIEW__;
       }
     };
-  }, [atualizarMetricasMalha, selecionarProjeto, abrirModal]);
+  }, [atualizarMetricasMalha, selecionarProjeto, selecionarLojaNoMapa, abrirModal]);
 
-  // Sincroniza estado da campanha (projetos, setores, ligações, derivados, lente) no mapa 3D
+  // Sincroniza estado da campanha (projetos, setores, produtos, ligações, derivados, lente, filtros) no mapa 3D
   useEffect(() => {
     if (mapViewRef.current) {
       mapViewRef.current.sincronizarEstado({
         projetos: dump.projetos,
         setores: dump.setores,
+        produtos: dump.produtos,
+        lancamentos: dump.lancamentos,
+        itens: dump.itens,
         ligacoes: dump.ligacoes,
         tiposLigacao: dump.tiposLigacao,
         derivadosPorProjeto,
@@ -121,11 +177,18 @@ export function App(): React.JSX.Element {
         itensLista: dump.itensDeLista,
         aplicacoes: dump.aplicacoes,
         hoje: semanaAtual,
+        filtroSetorId: filtroMapaSetorId,
+        filtroProdutoId: filtroMapaProdutoId,
+        produtosRecemCriadosIds: new Set(produtosRecemCriadosIds),
+        produtosRecemArquivadosIds: new Set(produtosRecemArquivadosIds),
       });
     }
   }, [
     dump.projetos,
     dump.setores,
+    dump.produtos,
+    dump.lancamentos,
+    dump.itens,
     dump.ligacoes,
     dump.tiposLigacao,
     dump.clientes,
@@ -137,12 +200,60 @@ export function App(): React.JSX.Element {
     semente,
     lenteAtiva,
     semanaAtual,
+    filtroMapaSetorId,
+    filtroMapaProdutoId,
+    produtosRecemCriadosIds,
+    produtosRecemArquivadosIds,
   ]);
 
   // Sincroniza input de semente quando ela muda na store
   useEffect(() => {
     setInputSemente(semente);
   }, [semente]);
+
+  // Inicializa banco de dados local ou auto-carrega a demonstração de 40 cidades no primeiro acesso
+  useEffect(() => {
+    let montado = true;
+    const inicializarCampanha = async () => {
+      const repo = useCampanhaStore.getState().repositorio;
+      try {
+        const existente = await repo.exportar();
+        if (!montado) return;
+        if (existente && existente.projetos.length > 0) {
+          await useCampanhaStore.getState().inicializar();
+        } else {
+          const demo = seedDemo('demo', 'imperio-de-projetos-demo-2026');
+          demo.meta.config.brief.concluido = true;
+          await useCampanhaStore.getState().importarJson(demo);
+        }
+      } catch {
+        void useCampanhaStore.getState().inicializar();
+      }
+    };
+    void inicializarCampanha();
+    return () => {
+      montado = false;
+    };
+  }, []);
+
+  // Quando o layout do mundo estiver pronto no primeiro carregamento,
+  // foca suavemente na Cidade Regional principal (Nível 5 / "Chen" do Total War)
+  const cameraFocadaRef = useRef(false);
+  useEffect(() => {
+    if (!layoutMundo || cameraFocadaRef.current || !mapViewRef.current) return;
+    if (layoutMundo.cidades.length > 0) {
+      cameraFocadaRef.current = true;
+      const cidadesOrdenadas = [...layoutMundo.cidades].sort(
+        (a, b) => b.nivel - a.nivel || b.receitaMensalCentavos - a.receitaMensalCentavos
+      );
+      const principal = cidadesOrdenadas[0];
+      if (principal) {
+        mapViewRef.current.voarAte(principal.x, principal.z, 75, 800);
+        selecionarProjeto(principal.projetoId);
+        setAlvoCameraMinimapa({ x: principal.x, z: principal.z });
+      }
+    }
+  }, [layoutMundo, selecionarProjeto]);
 
   // Listener global de atalhos (Seção 6.3 e 6.7)
   useEffect(() => {
@@ -193,6 +304,22 @@ export function App(): React.JSX.Element {
         return;
       }
 
+      // Atalho F para focar a Cidade Regional Principal estilo Total War
+      if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (mapViewRef.current && layoutMundo && layoutMundo.cidades.length > 0) {
+          e.preventDefault();
+          const ordenadas = [...layoutMundo.cidades].sort(
+            (a, b) => b.nivel - a.nivel || b.receitaMensalCentavos - a.receitaMensalCentavos
+          );
+          const principal = ordenadas[0];
+          if (principal) {
+            mapViewRef.current.voarAte(principal.x, principal.z, 140, 600);
+            selecionarProjeto(principal.projetoId);
+          }
+        }
+        return;
+      }
+
       const key = e.key.toUpperCase();
       if (key === 'H') {
         e.preventDefault();
@@ -203,7 +330,8 @@ export function App(): React.JSX.Element {
       } else if (key === 'L') {
         e.preventDefault();
         abrirModal('capturaRapida', 'lancamento');
-      } else if (key === 'E') {
+      } else if (key === 'V') {
+        // 'E' agora gira a câmera (Fase 2b, Seção 3.2); evento passa para 'V'
         e.preventDefault();
         abrirModal('capturaRapida', 'evento');
       } else if (key === 'G') {
@@ -289,6 +417,310 @@ export function App(): React.JSX.Element {
           />
         )}
 
+        {/* Barra de Filtros do Mercado & Metrópole Central (Seção 4.6) */}
+        {vistaAtiva === 'mapa' && (
+          <div
+            data-testid="barra-filtros-mercado-mapa"
+            style={{
+              position: 'absolute',
+              top: 10,
+              left: 12,
+              zIndex: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: 'rgba(31, 27, 22, 0.9)',
+              border: '1px solid var(--ouro)',
+              borderRadius: 6,
+              padding: '0.35rem 0.65rem',
+              color: '#E8DCC0',
+              fontSize: '0.74rem',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <button
+              type="button"
+              className="botao-campanha botao-campanha-ouro"
+              data-testid="botao-focar-metropole-central"
+              onClick={() => {
+                mapViewRef.current?.voarAte(0, 0);
+                setAlvoCameraMinimapa({ x: 0, z: 0 });
+              }}
+              style={{ padding: '0.18rem 0.45rem', fontSize: '0.72rem' }}
+              title="Voar até a Metrópole Central (0, 0)"
+            >
+              🏛️ Ir à metrópole
+            </button>
+
+            <button
+              type="button"
+              className="botao-campanha"
+              data-testid="botao-recarregar-dados-exemplo-topo"
+              onClick={() => {
+                const demo = seedDemo('demo', 'imperio-de-projetos-demo-2026');
+                demo.meta.config.brief.concluido = true;
+                void importarJson(demo);
+              }}
+              style={{ padding: '0.18rem 0.45rem', fontSize: '0.72rem' }}
+              title="Carregar ou restaurar as 40 cidades, 70 lojas e NPCs da demonstração"
+            >
+              📦 Carregar Demo
+            </button>
+
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span>Setor:</span>
+              <select
+                data-testid="select-filtro-mapa-setor"
+                className="select-form"
+                value={filtroMapaSetorId ?? ''}
+                onChange={(e) => {
+                  const val = (e.target.value as UUID) || null;
+                  definirFiltroMapaSetor(val);
+                  if (val) definirFiltroMapaProduto(null);
+                }}
+                style={{ padding: '0.15rem 0.35rem', fontSize: '0.72rem', width: 135 }}
+              >
+                <option value="">Todos os setores</option>
+                {dump.setores
+                  .filter((s) => s.arquivadoEm === null)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nome}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span>Produto:</span>
+              <select
+                data-testid="select-filtro-mapa-produto"
+                className="select-form"
+                value={filtroMapaProdutoId ?? ''}
+                onChange={(e) => {
+                  const val = (e.target.value as UUID) || null;
+                  definirFiltroMapaProduto(val);
+                }}
+                style={{ padding: '0.15rem 0.35rem', fontSize: '0.72rem', width: 155 }}
+              >
+                <option value="">Todos os produtos</option>
+                {dump.produtos
+                  .filter(
+                    (p) =>
+                      p.arquivadoEm === null &&
+                      p.ativo &&
+                      (!filtroMapaSetorId ||
+                        dump.projetos.find((proj) => proj.id === p.projetoId)?.setorId ===
+                          filtroMapaSetorId)
+                  )
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            {(filtroMapaSetorId || filtroMapaProdutoId) && (
+              <button
+                type="button"
+                className="botao-campanha"
+                data-testid="botao-limpar-filtros-mapa"
+                onClick={() => {
+                  definirFiltroMapaSetor(null);
+                  definirFiltroMapaProduto(null);
+                }}
+                style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}
+              >
+                ✕ Limpar
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Atalhos Rápidos Total War e Fatia H2 */}
+        {vistaAtiva === 'mapa' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 52,
+              right: 12,
+              zIndex: 14,
+              display: 'flex',
+              gap: '8px',
+            }}
+          >
+            <button
+              type="button"
+              className="botao-campanha botao-campanha-ouro"
+              data-testid="botao-focar-cidade-principal"
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem', cursor: 'pointer' }}
+              onClick={() => {
+                if (!mapViewRef.current || !layoutMundo || layoutMundo.cidades.length === 0) return;
+                const ordenadas = [...layoutMundo.cidades].sort(
+                  (a, b) => b.nivel - a.nivel || b.receitaMensalCentavos - a.receitaMensalCentavos
+                );
+                const principal = ordenadas[0];
+                if (principal) {
+                  mapViewRef.current.voarAte(principal.x, principal.z, 75, 600);
+                  selecionarProjeto(principal.projetoId);
+                }
+              }}
+              title="Focar na Cidade Regional Principal estilo Total War [Atalho: F]"
+            >
+              🏛️ Focar Cidade Total War [F]
+            </button>
+            <button
+              type="button"
+              className="botao-campanha botao-campanha-laca"
+              data-testid="botao-abrir-fatia-h2"
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem', cursor: 'pointer' }}
+              onClick={() => setModoVisual('h2')}
+              title="Inspecionar os 38 modelos procedurais do kit Han em alta fidelidade"
+            >
+              🏮 Inspecionar Fatia H2 (38 Modelos)
+            </button>
+          </div>
+        )}
+
+        {/* Dica de onboarding quando a Metrópole Central está sem produtos (Seção 2, Princípio 1) */}
+        {vistaAtiva === 'mapa' &&
+          dump.produtos.filter((p) => p.arquivadoEm === null && p.ativo).length === 0 && (
+            <div
+              data-testid="dica-metropole-vazia"
+              style={{
+                position: 'absolute',
+                top: 52,
+                left: 12,
+                zIndex: 11,
+                background: 'rgba(31, 27, 22, 0.88)',
+                border: '1px dashed var(--ouro)',
+                borderRadius: 6,
+                padding: '0.35rem 0.65rem',
+                color: '#E8DCC0',
+                fontSize: '0.73rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+              }}
+            >
+              <span>
+                🏛️ Metrópole vazia (praça e portões prontos) —{' '}
+                <strong>adicione um produto</strong> na aba Finanças de um projeto ou:
+              </span>
+              <button
+                type="button"
+                className="botao-campanha botao-campanha-ouro"
+                data-testid="botao-carregar-demo-metropole"
+                style={{ padding: '0.15rem 0.45rem', fontSize: '0.72rem', cursor: 'pointer' }}
+                onClick={() => {
+                  const demo = seedDemo('demo', 'imperio-de-projetos-demo-2026');
+                  demo.meta.config.brief.concluido = true;
+                  void importarJson(demo);
+                }}
+              >
+                ✨ Carregar 40 Cidades (Demo)
+              </button>
+            </div>
+          )}
+
+        {/* HUD de escala: nível semântico, barra de escala e trilha (Fase 2b, Seção 3.2) */}
+        {vistaAtiva === 'mapa' && hudCamera && (
+          <div
+            data-testid="hud-escala-camera"
+            data-nivel={hudCamera.nivelSemantico}
+            style={{
+              position: 'absolute',
+              bottom: 12,
+              left: 240,
+              zIndex: 12,
+              background: 'rgba(31, 27, 22, 0.88)',
+              border: '1px solid var(--ouro)',
+              borderRadius: 6,
+              padding: '0.3rem 0.6rem',
+              color: '#E8DCC0',
+              fontSize: '0.72rem',
+              pointerEvents: 'none',
+            }}
+          >
+            <div>
+              <strong data-testid="hud-nivel-camera">{hudCamera.rotuloNivel}</strong>
+              {' · '}
+              <span data-testid="hud-trilha-camera">{hudCamera.trilhaBreadcrumb.join(' > ')}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <div
+                style={{
+                  width: hudCamera.larguraPxBarraEscala,
+                  height: 5,
+                  borderLeft: '1px solid #E8DCC0',
+                  borderRight: '1px solid #E8DCC0',
+                  borderBottom: '1px solid #E8DCC0',
+                }}
+              />
+              <span data-testid="hud-barra-escala">{hudCamera.unidadesBarraEscala} u</span>
+            </div>
+          </div>
+        )}
+
+        {/* Tooltip de Hover de Lojas e Estradas no Mapa (Seções 4.3 e 4.6) */}
+        {vistaAtiva === 'mapa' && hoverMapa && (
+          <div
+            data-testid="tooltip-hover-mapa"
+            style={{
+              position: 'absolute',
+              top: 52,
+              left: 12,
+              zIndex: 15,
+              background: 'rgba(31, 27, 22, 0.94)',
+              border: '1px solid var(--ouro)',
+              borderRadius: 6,
+              padding: '0.45rem 0.7rem',
+              color: '#E8DCC0',
+              fontSize: '0.76rem',
+              maxWidth: 340,
+              pointerEvents: 'none',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
+            }}
+          >
+            {hoverMapa.tipo === 'loja' && (
+              <div data-testid="tooltip-hover-loja">
+                <div style={{ fontWeight: 700, color: 'var(--ouro)' }}>
+                  🏪 {hoverMapa.titulo} ({hoverMapa.loja?.tamanho ?? 'M'})
+                </div>
+                <div>{hoverMapa.subtitulo}</div>
+                <div style={{ color: '#8FD6B8', fontWeight: 600 }}>
+                  Receita mensal: {formatarMoeda(hoverMapa.receitaOuVolumeCentavos)}/mês
+                </div>
+              </div>
+            )}
+            {hoverMapa.tipo === 'estrada' && (
+              <div data-testid="tooltip-hover-estrada">
+                <div style={{ fontWeight: 700, color: 'var(--ouro)' }}>
+                  🛤️ {hoverMapa.titulo}
+                </div>
+                <div>{hoverMapa.subtitulo}</div>
+                <div style={{ color: '#8FD6B8', fontWeight: 600 }}>
+                  Volume mensal: {formatarMoeda(hoverMapa.receitaOuVolumeCentavos)}/mês
+                </div>
+                {hoverMapa.nomesProdutos.length > 0 && (
+                  <div style={{ fontSize: '0.72rem', color: '#D9C9A5' }}>
+                    Produtos: {hoverMapa.nomesProdutos.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+            {hoverMapa.tipo === 'cidade' && (
+              <div data-testid="tooltip-hover-cidade">
+                <div style={{ fontWeight: 700, color: 'var(--ouro)' }}>
+                  🏙️ {hoverMapa.titulo}
+                </div>
+                <div>{hoverMapa.subtitulo}</div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Vista Alternativa em Lista (Seção 6.8) */}
         {vistaAtiva === 'lista' && (
           <div style={{ position: 'relative', zIndex: 2, height: '100%', width: '100%' }}>
@@ -303,6 +735,9 @@ export function App(): React.JSX.Element {
         {vistaAtiva === 'mapa' && (
           <Minimapa
             alvoCamera={alvoCameraMinimapa}
+            trapezioCamera={hudCamera?.trapezioMinimapa}
+            raioMundo={layoutMundo?.raioMapa ?? mapViewRef.current?.obterLayoutMundo()?.raioMapa}
+            cunhas={layoutMundo?.cunhas}
             aoNavegarCamera={(x, z) => {
               mapViewRef.current?.voarAte(x, z);
               setAlvoCameraMinimapa({ x, z });
@@ -386,7 +821,13 @@ export function App(): React.JSX.Element {
       <CapturaRapida />
       <ModalFecharTurno />
       <ModalCriarProjeto />
-      <EditorRegistros />
+      <EditorRegistros
+        aoCarregarDadosExemplo={() => {
+          const exemplo = seedDemo('demo', 'imperio-de-projetos-demo-2026');
+          exemplo.meta.config.brief.concluido = true;
+          void importarJson(exemplo);
+        }}
+      />
       <TelaArvoreTecnologica />
       <TelaEstoqueGlobal />
       <BuscaGlobal

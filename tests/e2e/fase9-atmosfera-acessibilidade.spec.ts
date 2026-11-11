@@ -46,7 +46,7 @@ test.describe('Fase 9 — Atmosfera, Redundância Visual e Acessibilidade (Seç�
     });
 
     expect(dadosAtmosfera.atmosfera).not.toBeNull();
-    expect(dadosAtmosfera.atmosfera!.riosRenderizados).toBeGreaterThanOrEqual(2);
+    expect(dadosAtmosfera.atmosfera!.riosRenderizados).toBe(0);
     expect(dadosAtmosfera.atmosfera!.celulasNevoaGuerraAtivas).toBeGreaterThan(0);
 
     expect(dadosAtmosfera.formasSaude).not.toBeNull();

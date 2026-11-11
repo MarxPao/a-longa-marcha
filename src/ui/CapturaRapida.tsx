@@ -40,6 +40,7 @@ export function CapturaRapida(): React.JSX.Element | null {
   const [valorReais, setValorReais] = useState('1500.00');
   const [categoriaLancamento, setCategoriaLancamento] = useState('Serviços');
   const [dataLancamento, setDataLancamento] = useState(semanaAtual);
+  const [produtoLancamentoId, setProdutoLancamentoId] = useState<UUID | ''>('');
 
   // Campos de Evento
   const [tituloEvento, setTituloEvento] = useState('');
@@ -50,7 +51,10 @@ export function CapturaRapida(): React.JSX.Element | null {
   if (modalAberto !== 'capturaRapida') return null;
 
   const tarefasDoProjeto = dump.tarefas.filter(
-    (t) => t.projetoId === projetoId && t.arquivadoEm === null && t.status !== 'feita'
+    (t) => t.projetoId === projetoEfetivo && t.arquivadoEm === null && t.status !== 'feita'
+  );
+  const produtosDoProjeto = dump.produtos.filter(
+    (p) => p.projetoId === projetoEfetivo && p.arquivadoEm === null && p.ativo
   );
 
   const submeter = async (e: React.FormEvent) => {
@@ -96,6 +100,11 @@ export function CapturaRapida(): React.JSX.Element | null {
           dump.categoriasLancamento[0]?.id ??
           (crypto.randomUUID() as UUID);
 
+        const prodIdEfetivo =
+          tipoLancamento === 'receita'
+            ? produtoLancamentoId || produtosDoProjeto[0]?.id || undefined
+            : undefined;
+
         await criarEntidade<Lancamento>('lancamentos', {
           projetoId: projetoEfetivo,
           tipo: tipoLancamento,
@@ -103,6 +112,7 @@ export function CapturaRapida(): React.JSX.Element | null {
           categoriaId: catId,
           data: dataLancamento,
           clienteId: null,
+          produtoId: prodIdEfetivo,
           recorrencia: null,
           origemRecorrenciaId: null,
         });
@@ -363,6 +373,25 @@ export function CapturaRapida(): React.JSX.Element | null {
                     />
                   </div>
                 </div>
+
+                {tipoLancamento === 'receita' && (
+                  <div className="campo-form">
+                    <label className="rotulo-form">Produto (Loja na Metrópole Central):</label>
+                    <select
+                      className="select-form"
+                      data-testid="select-captura-lancamento-produto"
+                      value={produtoLancamentoId || produtosDoProjeto[0]?.id || ''}
+                      onChange={(e) => setProdutoLancamentoId((e.target.value as UUID) || '')}
+                    >
+                      <option value="">Sem produto vinculado (Banca Genérica)</option>
+                      {produtosDoProjeto.map((prod) => (
+                        <option key={prod.id} value={prod.id}>
+                          {prod.nome} ({prod.categoria})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </>
             )}
 

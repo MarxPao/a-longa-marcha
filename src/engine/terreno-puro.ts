@@ -94,3 +94,51 @@ export function amostrarTerrenoPorSemente(
 
   return { x, z, altura, biomaVisual };
 }
+
+export interface PlateauAssentamento {
+  x: number;
+  z: number;
+  raio: number;
+  alturaAlvo?: number;
+}
+
+/**
+ * Amostra o relevo aplicando terraplanagem suave (platôs) ao redor de cidades e metrópoles,
+ * garantindo assentamento natural sem montes perfurando muralhas (como em Total War: Three Kingdoms).
+ */
+export function amostrarTerrenoComPlateaus(
+  x: number,
+  z: number,
+  semente: SementeTerreno,
+  plateaus?: readonly PlateauAssentamento[]
+): AmostraRelevo {
+  const base = amostrarTerrenoPorSemente(x, z, semente);
+  if (!plateaus || plateaus.length === 0) return base;
+
+  let alturaFinal = base.altura;
+  let biomaFinal = base.biomaVisual;
+
+  for (let i = 0; i < plateaus.length; i++) {
+    const p = plateaus[i]!;
+    const dist = Math.hypot(x - p.x, z - p.z);
+    const rInt = p.raio * 0.85;
+    const rExt = p.raio * 1.35;
+
+    if (dist < rExt) {
+      const hAlvo = p.alturaAlvo ?? 0.5;
+      const t = dist <= rInt ? 0 : (dist - rInt) / (rExt - rInt);
+      const pesoPlateau = 1 - t * t * (3 - 2 * t);
+      alturaFinal = alturaFinal * (1 - pesoPlateau) + hAlvo * pesoPlateau;
+      if (pesoPlateau > 0.5) {
+        biomaFinal = 'planicie';
+      }
+    }
+  }
+
+  return {
+    x,
+    z,
+    altura: Math.round(alturaFinal * 1000) / 1000,
+    biomaVisual: biomaFinal,
+  };
+}

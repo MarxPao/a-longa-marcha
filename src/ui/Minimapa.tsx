@@ -66,14 +66,29 @@ export const CATALOGO_LENTES: DefinicaoLente[] = [
   },
 ];
 
+export interface CunhaSetorMinimapa {
+  setorId: string;
+  nome?: string;
+  cor: string;
+  anguloInicioRad: number;
+  anguloFimRad: number;
+  poligono?: [number, number][];
+}
+
 interface PropriedadesMinimapa {
   aoNavegarCamera?: (x: number, z: number) => void;
   alvoCamera?: { x: number; z: number };
+  trapezioCamera?: ReadonlyArray<readonly [number, number]>;
+  raioMundo?: number;
+  cunhas?: readonly CunhaSetorMinimapa[];
 }
 
 export function Minimapa({
   aoNavegarCamera,
   alvoCamera,
+  trapezioCamera,
+  raioMundo = 840,
+  cunhas,
 }: PropriedadesMinimapa): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -86,7 +101,7 @@ export function Minimapa({
 
   const LARGURA = 200;
   const ALTURA = 140;
-  const MUNDO_RAIO = 160; // mundo vai de -160 a +160
+  const MUNDO_RAIO = Math.max(160, raioMundo);
 
   const mundoParaCanvas = (x: number, z: number) => {
     const cx = ((x + MUNDO_RAIO) / (MUNDO_RAIO * 2)) * LARGURA;
@@ -143,7 +158,7 @@ export function Minimapa({
     ctx.fillRect(0, 0, LARGURA, ALTURA);
 
     // Grade sutil de coordenadas
-    ctx.strokeStyle = 'rgba(122, 90, 43, 0.18)';
+    ctx.strokeStyle = 'rgba(122, 90, 43, 0.15)';
     ctx.lineWidth = 1;
     for (let gx = 40; gx < LARGURA; gx += 40) {
       ctx.beginPath();
@@ -158,26 +173,89 @@ export function Minimapa({
       ctx.stroke();
     }
 
-    // 2. Desenha polígonos dos territórios (setores)
-    for (const setor of dump.setores) {
-      if (setor.arquivadoEm !== null || setor.regiao.length < 3) continue;
+    const centroCanvas = mundoParaCanvas(0, 0);
+    const raioCunhaMundo = MUNDO_RAIO * 1.15;
+
+    // 2. Territórios dos Setores (Cunhas Radiais do Mapa de Campanha)
+    const setoresAtivos = dump.setores.filter((s) => s.arquivadoEm === null);
+    const cunhasEfetivas: CunhaSetorMinimapa[] =
+      cunhas && cunhas.length > 0
+        ? [...cunhas]
+        : setoresAtivos.map((s, idx) => {
+            const passo = (Math.PI * 2) / Math.max(1, setoresAtivos.length);
+            return {
+              setorId: s.id,
+              nome: s.nome,
+              cor: s.cor,
+              anguloInicioRad: idx * passo,
+              anguloFimRad: (idx + 1) * passo,
+            };
+          });
+
+    for (const cunha of cunhasEfetivas) {
       ctx.save();
       ctx.beginPath();
-      setor.regiao.forEach((pt, idx) => {
-        const { cx, cy } = mundoParaCanvas(pt[0], pt[1]);
-        if (idx === 0) ctx.moveTo(cx, cy);
-        else ctx.lineTo(cx, cy);
-      });
+      ctx.moveTo(centroCanvas.cx, centroCanvas.cy);
+
+      if (cunha.poligono && cunha.poligono.length >= 3) {
+        cunha.poligono.forEach((pt, idx) => {
+          const { cx, cy } = mundoParaCanvas(pt[0], pt[1]);
+          if (idx === 0) ctx.moveTo(cx, cy);
+          else ctx.lineTo(cx, cy);
+        });
+      } else {
+        const passos = 16;
+        for (let i = 0; i <= passos; i++) {
+          const t = i / passos;
+          const ang =
+            cunha.anguloInicioRad + (cunha.anguloFimRad - cunha.anguloInicioRad) * t;
+          const px = Math.cos(ang) * raioCunhaMundo;
+          const pz = Math.sin(ang) * raioCunhaMundo;
+          const pt = mundoParaCanvas(px, pz);
+          ctx.lineTo(pt.cx, pt.cy);
+        }
+      }
+
       ctx.closePath();
-      ctx.fillStyle = `${setor.cor}28`;
+      ctx.fillStyle = `${cunha.cor}24`; // preenchimento com 14% de opacidade
       ctx.fill();
-      ctx.strokeStyle = setor.cor;
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = `${cunha.cor}55`;
+      ctx.lineWidth = 1;
       ctx.stroke();
+
+      // Fronteira de tinta na borda do setor
+      const pBordaX = Math.cos(cunha.anguloInicioRad) * raioCunhaMundo;
+      const pBordaZ = Math.sin(cunha.anguloInicioRad) * raioCunhaMundo;
+      const ptBorda = mundoParaCanvas(pBordaX, pBordaZ);
+      ctx.beginPath();
+      ctx.moveTo(centroCanvas.cx, centroCanvas.cy);
+      ctx.lineTo(ptBorda.cx, ptBorda.cy);
+      ctx.strokeStyle = 'rgba(31, 27, 22, 0.35)'; // tinta aguada #1F1B16
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+
       ctx.restore();
     }
 
-    // 3. Desenha rotas de ligação entre projetos
+    // 3. Metrópole Central (Mercado Vivo) em (0, 0)
+    ctx.save();
+    const rxMetro = (140 / (MUNDO_RAIO * 2)) * LARGURA;
+    const ryMetro = (140 / (MUNDO_RAIO * 2)) * ALTURA;
+    ctx.beginPath();
+    ctx.ellipse(centroCanvas.cx, centroCanvas.cy, rxMetro, ryMetro, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(184, 146, 58, 0.25)'; // ouro imperial
+    ctx.fill();
+    ctx.strokeStyle = '#B8923A';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(centroCanvas.cx, centroCanvas.cy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#B8923A';
+    ctx.fill();
+    ctx.restore();
+
+    // 4. Rotas de ligação comercial entre projetos
     const projetosMap = new Map(dump.projetos.map((p) => [p.id, p]));
     for (const lig of dump.ligacoes) {
       if (lig.arquivadoEm !== null) continue;
@@ -185,8 +263,13 @@ export function Minimapa({
       const p2 = projetosMap.get(lig.destinoId);
       if (!p1 || !p2) continue;
 
-      const c1 = mundoParaCanvas(p1.x, p1.z);
-      const c2 = mundoParaCanvas(p2.x, p2.z);
+      const p1x = p1.posicao?.x ?? p1.x;
+      const p1z = p1.posicao?.z ?? p1.z;
+      const p2x = p2.posicao?.x ?? p2.x;
+      const p2z = p2.posicao?.z ?? p2.z;
+
+      const c1 = mundoParaCanvas(p1x, p1z);
+      const c2 = mundoParaCanvas(p2x, p2z);
 
       ctx.save();
       ctx.beginPath();
@@ -195,54 +278,99 @@ export function Minimapa({
       ctx.strokeStyle =
         lenteAtiva === 'rede' || lenteAtiva === 'financas'
           ? 'rgba(184, 146, 58, 0.85)'
-          : 'rgba(122, 90, 43, 0.4)';
-      ctx.lineWidth = lenteAtiva === 'rede' ? 1.5 : 1;
+          : 'rgba(122, 90, 43, 0.45)';
+      ctx.lineWidth = lenteAtiva === 'rede' ? 1.6 : 1;
       ctx.stroke();
       ctx.restore();
     }
 
-    // 4. Desenha cidades coloridas pela lente ativa
+    // 5. Cidades com Zonas de Influência Circular (Halos)
     for (const proj of dump.projetos) {
-      const { cx, cy } = mundoParaCanvas(proj.x, proj.z);
+      if (proj.arquivadoEm !== null) continue;
+      const px = proj.posicao?.x ?? proj.x;
+      const pz = proj.posicao?.z ?? proj.z;
+      const { cx, cy } = mundoParaCanvas(px, pz);
       const corCidade = calcularCorCidadePorLente(proj, contextoLente);
       const selecionado = proj.id === projetoSelecionadoId;
 
       ctx.save();
+
+      // ZONA DE INFLUÊNCIA TERRITORIAL DA CIDADE (Proporcional ao nível 1..7)
+      const deriv = derivadosPorProjeto.get(proj.id);
+      const nivel = deriv?.fase?.fase ? Math.max(1, Math.min(7, deriv.fase.fase)) : 1;
+      const raioInfluenciaMundo = 20 + nivel * 6; // 26 u a 62 u
+      const raioInfluenciaCanvas = Math.max(6, (raioInfluenciaMundo / (MUNDO_RAIO * 2)) * LARGURA);
+
+      const grad = ctx.createRadialGradient(cx, cy, 1, cx, cy, raioInfluenciaCanvas);
+      grad.addColorStop(0, `${corCidade}45`);
+      grad.addColorStop(0.65, `${corCidade}18`);
+      grad.addColorStop(1, `${corCidade}00`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, raioInfluenciaCanvas, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, raioInfluenciaCanvas, 0, Math.PI * 2);
+      ctx.strokeStyle = `${corCidade}45`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      // Marcador central da cidade
       if (selecionado) {
         ctx.beginPath();
-        ctx.arc(cx, cy, 6.5, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 7, 0, Math.PI * 2);
         ctx.strokeStyle = '#B8923A';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.2;
         ctx.stroke();
       }
 
       ctx.beginPath();
-      ctx.arc(cx, cy, selecionado ? 4 : 3.2, 0, Math.PI * 2);
+      ctx.arc(cx, cy, selecionado ? 4.5 : 3.2, 0, Math.PI * 2);
       ctx.fillStyle = corCidade;
       ctx.fill();
       ctx.strokeStyle = '#1F1B16';
-      ctx.lineWidth = 0.8;
+      ctx.lineWidth = 0.9;
       ctx.stroke();
+
       ctx.restore();
     }
 
-    // 5. Retângulo de câmera (frustum / alvo)
-    const camX = alvoCamera?.x ?? 0;
-    const camZ = alvoCamera?.z ?? 0;
-    const posCam = mundoParaCanvas(camX, camZ);
+    // 6. Trapézio visível da câmera (frustum projetado no chão)
     ctx.save();
     ctx.strokeStyle = '#8E1F1A';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(posCam.cx - 18, posCam.cy - 12, 36, 24);
+    ctx.fillStyle = 'rgba(142, 31, 26, 0.16)';
+    ctx.lineWidth = 1.4;
+    if (trapezioCamera && trapezioCamera.length >= 4) {
+      ctx.beginPath();
+      trapezioCamera.forEach((pt, idx) => {
+        const { cx, cy } = mundoParaCanvas(pt[0], pt[1]);
+        const cxClamp = Math.max(1, Math.min(LARGURA - 1, cx));
+        const cyClamp = Math.max(1, Math.min(ALTURA - 1, cy));
+        if (idx === 0) ctx.moveTo(cxClamp, cyClamp);
+        else ctx.lineTo(cxClamp, cyClamp);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      const camX = alvoCamera?.x ?? 0;
+      const camZ = alvoCamera?.z ?? 0;
+      const posCam = mundoParaCanvas(camX, camZ);
+      ctx.strokeRect(posCam.cx - 18, posCam.cy - 12, 36, 24);
+    }
     ctx.restore();
   }, [
     dump.setores,
     dump.projetos,
     dump.ligacoes,
+    cunhas,
     contextoLente,
     projetoSelecionadoId,
     lenteAtiva,
     alvoCamera,
+    trapezioCamera,
+    MUNDO_RAIO,
   ]);
 
   const handleCliqueCanvas = (e: React.MouseEvent<HTMLCanvasElement>) => {

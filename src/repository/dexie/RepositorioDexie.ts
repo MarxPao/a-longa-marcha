@@ -21,6 +21,7 @@ interface MetaRegistroIndexedDB {
 export class BancoDexieCampanha extends Dexie {
   setores!: Table<Base, string>;
   projetos!: Table<Base, string>;
+  produtos!: Table<Base, string>;
   frentes!: Table<Base, string>;
   tarefas!: Table<Base, string>;
   bloqueiosTarefa!: Table<BloqueioTarefa, [string, string]>;
@@ -57,6 +58,36 @@ export class BancoDexieCampanha extends Dexie {
       clientes: 'id, statusRelacao, arquivadoEm',
       vinculosCliente: 'id, clienteId, projetoId, arquivadoEm',
       lancamentos: 'id, projetoId, categoriaId, data, tipo, arquivadoEm',
+      fornecedores: 'id, arquivadoEm',
+      armazens: 'id, arquivadoEm',
+      itens: 'id, fornecedorId, tipo, arquivadoEm',
+      saldos: 'id, itemId, armazemId, arquivadoEm',
+      movimentos: 'id, itemId, armazemId, data, tipo, arquivadoEm',
+      itensDeLista: 'id, projetoId, itemId, status, arquivadoEm',
+      tecnologias: 'id, estado, arquivadoEm',
+      preRequisitosTecnologia:
+        '[tecnologiaId+preRequisitoId], tecnologiaId, preRequisitoId',
+      aplicacoes: 'id, tecnologiaId, projetoId, arquivadoEm',
+      tiposLigacao: 'id, arquivadoEm',
+      ligacoes: 'id, origemId, destinoId, tipoId, arquivadoEm',
+      registrosDeHoras: 'id, projetoId, tarefaId, data, arquivadoEm',
+      eventos: 'id, projetoId, data, tipo, fechamentoId, arquivadoEm',
+      instantaneos: 'id, semana, fechamentoId, arquivadoEm',
+      estagios: 'id, ordem, arquivadoEm',
+      categoriasLancamento: 'id, ordem, arquivadoEm',
+      meta: 'id',
+    });
+
+    this.version(2).stores({
+      setores: 'id, ordem, arquivadoEm',
+      projetos: 'id, setorId, estagioId, arquivadoEm',
+      produtos: 'id, projetoId, tipoLoja, ativo, arquivadoEm',
+      frentes: 'id, projetoId, paiId, arquivadoEm',
+      tarefas: 'id, projetoId, frenteId, status, prazo, prioridade, arquivadoEm',
+      bloqueiosTarefa: '[tarefaId+bloqueadaPorId], tarefaId, bloqueadaPorId',
+      clientes: 'id, statusRelacao, arquivadoEm',
+      vinculosCliente: 'id, clienteId, projetoId, arquivadoEm',
+      lancamentos: 'id, projetoId, produtoId, categoriaId, data, tipo, arquivadoEm',
       fornecedores: 'id, arquivadoEm',
       armazens: 'id, arquivadoEm',
       itens: 'id, fornecedorId, tipo, arquivadoEm',
@@ -173,6 +204,7 @@ export class RepositorioDexie implements Repository {
       const chavesBase: (keyof DumpBanco)[] = [
         'setores',
         'projetos',
+        'produtos',
         'frentes',
         'tarefas',
         'clientes',
@@ -229,6 +261,7 @@ export class RepositorioDexie implements Repository {
       const chavesBase: (keyof DumpBanco)[] = [
         'setores',
         'projetos',
+        'produtos',
         'frentes',
         'tarefas',
         'clientes',

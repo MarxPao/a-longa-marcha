@@ -1,4 +1,9 @@
-export { gerarHashSemente, amostrarTerrenoPorSemente } from './terreno-puro';
+export {
+  gerarHashSemente,
+  amostrarTerrenoPorSemente,
+  amostrarTerrenoComPlateaus,
+  type PlateauAssentamento,
+} from './terreno-puro';
 export * from './tempo';
 export * from './moral';
 export * from './saude';
@@ -15,3 +20,4 @@ export * from './arvoreTecnologica';
 export * from './eventos';
 export * from './conquistas';
 export * from './turno';
+export * from './trade';

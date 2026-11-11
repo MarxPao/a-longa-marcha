@@ -15,17 +15,16 @@ import { AbaTarefas } from './painel/AbaTarefas';
 import { AbaVisaoGeral } from './painel/AbaVisaoGeral';
 import { ModalEditarProjeto } from './painel/ModalEditarProjeto';
 
-type AbaPainel = 'visaoGeral' | 'tarefas' | 'clientes' | 'financas' | 'estoque' | 'pd';
-
 export function PainelProjeto(): React.JSX.Element | null {
   const projetoId = useCampanhaStore((s) => s.projetoSelecionadoId);
+  const abaAtiva = useCampanhaStore((s) => s.abaAtivaPainel);
+  const setAbaAtiva = useCampanhaStore((s) => s.definirAbaAtivaPainel);
   const dump = useCampanhaStore((s) => s.dump);
   const derivadosPorProjeto = useCampanhaStore((s) => s.derivadosPorProjeto);
   const semanaAtual = useCampanhaStore((s) => s.semanaAtual);
   const selecionarProjeto = useCampanhaStore((s) => s.selecionarProjeto);
   const arquivarEntidade = useCampanhaStore((s) => s.arquivarEntidade);
 
-  const [abaAtiva, setAbaAtiva] = useState<AbaPainel>('visaoGeral');
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [modalRuinasAberto, setModalRuinasAberto] = useState(false);
   const [licoesAprendidas, setLicoesAprendidas] = useState('');

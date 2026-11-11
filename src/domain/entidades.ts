@@ -95,6 +95,7 @@ export interface Projeto extends Base {
   setorId: UUID;
   x: number;
   z: number;
+  posicao?: { x: number; z: number } | null;
   estagioId: UUID | null;
   horasAlvoSemana: number;
   autonomia: 'direto' | 'esparso' | 'autonomo';
@@ -108,6 +109,13 @@ export const EsquemaProjeto: z.ZodType<Projeto> = EsquemaBase.extend({
   setorId: EsquemaUUID,
   x: z.number().finite(),
   z: z.number().finite(),
+  posicao: z
+    .object({
+      x: z.number().finite(),
+      z: z.number().finite(),
+    })
+    .nullable()
+    .optional(),
   estagioId: EsquemaUUID.nullable(),
   horasAlvoSemana: z.number().finite().min(0, 'Horas-alvo não podem ser negativas'),
   autonomia: z.enum(['direto', 'esparso', 'autonomo']),
@@ -204,6 +212,57 @@ export const EsquemaVinculoCliente: z.ZodType<VinculoCliente> = EsquemaBase.exte
   fim: EsquemaData.nullable(),
 });
 
+export interface Produto extends Base {
+  projetoId: UUID;
+  nome: string;
+  categoria: string; // livre, editável
+  tipoLoja: string; // chave do shopRegistry
+  icone: string; // chave do conjunto de ícones
+  ativo: boolean;
+}
+
+export const EsquemaProduto: z.ZodType<Produto> = EsquemaBase.extend({
+  projetoId: EsquemaUUID,
+  nome: z.string().trim().min(1, 'Nome do produto obrigatório'),
+  categoria: z.string(),
+  tipoLoja: z.string().trim().min(1, 'Tipo de loja obrigatório'),
+  icone: z.string().trim().min(1, 'Ícone obrigatório'),
+  ativo: z.boolean(),
+});
+
+export interface Loja {
+  produtoId: string;
+  projetoId: string;
+  setorId: string;
+  tamanho: 'P' | 'M' | 'G';
+  slot: { anel: number; indice: number };
+  estado: 'abrindo' | 'aberta' | 'fechada' | 'sumindo';
+  receitaMensal: number;
+  nomeProduto?: string;
+  tipoLoja?: string;
+  icone?: string;
+  bancaSemProduto?: boolean;
+  x?: number;
+  z?: number;
+  anguloRad?: number;
+  medidaUnidades?: number;
+}
+
+export interface Fluxo {
+  id: string;
+  tipo: 'producao' | 'insumo' | 'ligacao';
+  origemId: string;
+  destinoId: string;
+  volumeMensal: number;
+  produtoIds: string[];
+  rota: { x: number; z: number }[];
+  quantidadeNpcs?: number;
+  setorOrigemId?: string;
+  corSetorOrigem?: string;
+  tipoCarga?: string;
+  clienteIdDominante?: string | null;
+}
+
 export interface Lancamento extends Base {
   data: Data;
   tipo: 'receita' | 'custo';
@@ -211,6 +270,7 @@ export interface Lancamento extends Base {
   categoriaId: UUID;
   projetoId: UUID;
   clienteId: UUID | null;
+  produtoId?: UUID | null;
   recorrencia: Recorrencia | null;
   origemRecorrenciaId: UUID | null;
 }
@@ -222,6 +282,7 @@ export const EsquemaLancamento: z.ZodType<Lancamento> = EsquemaBase.extend({
   categoriaId: EsquemaUUID,
   projetoId: EsquemaUUID,
   clienteId: EsquemaUUID.nullable(),
+  produtoId: EsquemaUUID.nullable().optional(),
   recorrencia: EsquemaRecorrencia.nullable(),
   origemRecorrenciaId: EsquemaUUID.nullable(),
 });
@@ -682,7 +743,7 @@ export interface Meta {
   conquistas: Record<string, RegistroConquista>;
 }
 
-export const VERSAO_ESQUEMA_ATUAL = 1;
+export const VERSAO_ESQUEMA_ATUAL = 2;
 
 export const EsquemaMeta: z.ZodType<Meta> = z.object({
   versaoEsquema: z.number().int().min(1),
@@ -697,6 +758,7 @@ export const EsquemaMeta: z.ZodType<Meta> = z.object({
 export const NOMES_TABELAS_BASE = [
   'setores',
   'projetos',
+  'produtos',
   'frentes',
   'tarefas',
   'clientes',
@@ -724,6 +786,7 @@ export type NomeTabelaBase = (typeof NOMES_TABELAS_BASE)[number];
 export const ESQUEMAS_POR_TABELA: Record<NomeTabelaBase, z.ZodType<Base>> = {
   setores: EsquemaSetor,
   projetos: EsquemaProjeto,
+  produtos: EsquemaProduto,
   frentes: EsquemaFrente,
   tarefas: EsquemaTarefa,
   clientes: EsquemaCliente,
@@ -749,6 +812,7 @@ export const ESQUEMAS_POR_TABELA: Record<NomeTabelaBase, z.ZodType<Base>> = {
 export interface TabelasDump {
   setores: Setor[];
   projetos: Projeto[];
+  produtos: Produto[];
   frentes: Frente[];
   tarefas: Tarefa[];
   bloqueiosTarefa: BloqueioTarefa[];
@@ -778,11 +842,12 @@ export interface DumpBanco extends TabelasDump {
   meta: Meta;
 }
 
-export const EsquemaDumpBanco: z.ZodType<DumpBanco> = z.object({
+export const EsquemaDumpBanco: z.ZodType<DumpBanco, z.ZodTypeDef, unknown> = z.object({
   versaoEsquema: z.number().int().min(1),
   meta: EsquemaMeta,
   setores: z.array(EsquemaSetor),
   projetos: z.array(EsquemaProjeto),
+  produtos: z.array(EsquemaProduto).default([]),
   frentes: z.array(EsquemaFrente),
   tarefas: z.array(EsquemaTarefa),
   bloqueiosTarefa: z.array(EsquemaBloqueioTarefa),
@@ -838,6 +903,7 @@ export function criarDumpVazio(): DumpBanco {
     meta,
     setores: [],
     projetos: [],
+    produtos: [],
     frentes: [],
     tarefas: [],
     bloqueiosTarefa: [],
@@ -863,9 +929,50 @@ export function criarDumpVazio(): DumpBanco {
   };
 }
 
+export function inferirTipoLojaPadrao(nomeProjeto: string, setorIdOuNome = ''): {
+  tipoLoja: string;
+  icone: string;
+} {
+  const texto = `${nomeProjeto} ${setorIdOuNome}`.toLowerCase();
+  if (texto.includes('padaria') || texto.includes('pão') || texto.includes('pao')) {
+    return { tipoLoja: 'padaria', icone: 'pao' };
+  }
+  if (texto.includes('açougue') || texto.includes('acougue') || texto.includes('carne')) {
+    return { tipoLoja: 'acougue', icone: 'carne' };
+  }
+  if (texto.includes('bebida') || texto.includes('taverna') || texto.includes('cerveja')) {
+    return { tipoLoja: 'taverna', icone: 'barril' };
+  }
+  if (texto.includes('agro') || texto.includes('agricultura') || texto.includes('grão')) {
+    return { tipoLoja: 'armazem_graos', icone: 'saco_graos' };
+  }
+  if (
+    texto.includes('auto') ||
+    texto.includes('rob') ||
+    texto.includes('ferra') ||
+    texto.includes('cnc')
+  ) {
+    return { tipoLoja: 'ferraria', icone: 'engrenagem' };
+  }
+  if (texto.includes('quim') || texto.includes('quím') || texto.includes('alquim')) {
+    return { tipoLoja: 'laboratorio_alquimista', icone: 'frasco' };
+  }
+  if (texto.includes('soft') || texto.includes('app') || texto.includes('escriba')) {
+    return { tipoLoja: 'casa_escribas', icone: 'pergaminho' };
+  }
+  if (texto.includes('comer') || texto.includes('venda') || texto.includes('câmbio')) {
+    return { tipoLoja: 'balanca_cambio', icone: 'balanca' };
+  }
+  if (texto.includes('aliment')) {
+    return { tipoLoja: 'padaria', icone: 'pao' };
+  }
+  return { tipoLoja: 'balanca_cambio', icone: 'caixa' };
+}
+
 /**
- * Migra um dump de versão antiga (ex: v0 legado sem campos novos ou com valores em reais)
- * para a versão atual do esquema (v1), preservando integralmente os dados antes da validação Zod.
+ * Migra um dump de versão antiga (v0 ou v1) para a versão atual do esquema (v2),
+ * preservando integralmente os dados e gerando um Produto padrão por projeto com receita
+ * (com o nome do projeto) conforme Seção 5.
  */
 export function migrarDumpParaVersaoAtual(bruto: unknown): unknown {
   if (!bruto || typeof bruto !== 'object') {
@@ -933,6 +1040,89 @@ export function migrarDumpParaVersaoAtual(bruto: unknown): unknown {
         }
         return it;
       });
+    }
+  }
+
+  // Migração v1 -> v2: adiciona coleção `produtos` e cria um Produto padrão por projeto com receita
+  if (versao < 2) {
+    if (!Array.isArray(obj.produtos)) {
+      obj.produtos = [];
+    }
+    const produtosArr = obj.produtos as Array<Record<string, unknown>>;
+    const projetosArr = Array.isArray(obj.projetos)
+      ? (obj.projetos as Array<Record<string, unknown>>)
+      : [];
+    const lancamentosArr = Array.isArray(obj.lancamentos)
+      ? (obj.lancamentos as Array<Record<string, unknown>>)
+      : [];
+
+    const projetosComProduto = new Set<string>();
+    for (const prod of produtosArr) {
+      if (typeof prod.projetoId === 'string') {
+        projetosComProduto.add(prod.projetoId);
+      }
+    }
+
+    const projetosComReceita = new Set<string>();
+    for (const lanc of lancamentosArr) {
+      if (
+        lanc &&
+        lanc.tipo === 'receita' &&
+        lanc.arquivadoEm === null &&
+        typeof lanc.projetoId === 'string' &&
+        typeof lanc.valorCentavos === 'number' &&
+        lanc.valorCentavos > 0
+      ) {
+        projetosComReceita.add(lanc.projetoId);
+      }
+    }
+
+    const mapaProdutoPadraoPorProjeto = new Map<string, string>();
+    for (const proj of projetosArr) {
+      const projId = typeof proj.id === 'string' ? proj.id : '';
+      if (!projId || !projetosComReceita.has(projId) || projetosComProduto.has(projId)) {
+        continue;
+      }
+      const nomeProj = typeof proj.nome === 'string' && proj.nome.trim() ? proj.nome : 'Produto Principal';
+      const setorId = typeof proj.setorId === 'string' ? proj.setorId : '';
+      const { tipoLoja, icone } = inferirTipoLojaPadrao(nomeProj, setorId);
+      const prodId = `prod-padrao-${projId}`;
+      const instantePadrao =
+        typeof proj.criadoEm === 'string' ? proj.criadoEm : '2026-01-01T00:00:00.000Z';
+
+      produtosArr.push({
+        id: prodId,
+        projetoId: projId,
+        nome: nomeProj,
+        categoria: 'Principal',
+        tipoLoja,
+        icone,
+        ativo: true,
+        criadoEm: instantePadrao,
+        atualizadoEm:
+          typeof proj.atualizadoEm === 'string' ? proj.atualizadoEm : instantePadrao,
+        arquivadoEm: proj.arquivadoEm ?? null,
+      });
+      mapaProdutoPadraoPorProjeto.set(projId, prodId);
+    }
+
+    if (mapaProdutoPadraoPorProjeto.size > 0) {
+      for (const lanc of lancamentosArr) {
+        if (
+          lanc &&
+          lanc.tipo === 'receita' &&
+          !lanc.produtoId &&
+          typeof lanc.projetoId === 'string' &&
+          mapaProdutoPadraoPorProjeto.has(lanc.projetoId)
+        ) {
+          lanc.produtoId = mapaProdutoPadraoPorProjeto.get(lanc.projetoId);
+        }
+      }
+    }
+
+    obj.versaoEsquema = VERSAO_ESQUEMA_ATUAL;
+    if (obj.meta && typeof obj.meta === 'object') {
+      (obj.meta as Record<string, unknown>).versaoEsquema = VERSAO_ESQUEMA_ATUAL;
     }
   }
 

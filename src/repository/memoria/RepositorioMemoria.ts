@@ -42,6 +42,7 @@ export class RepositorioMemoria implements Repository {
     const chavesBase: (keyof DumpBanco)[] = [
       'setores',
       'projetos',
+      'produtos',
       'frentes',
       'tarefas',
       'clientes',
@@ -145,6 +146,7 @@ export class RepositorioMemoria implements Repository {
     const chavesBase: (keyof DumpBanco)[] = [
       'setores',
       'projetos',
+      'produtos',
       'frentes',
       'tarefas',
       'clientes',

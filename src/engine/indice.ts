@@ -6,6 +6,7 @@ import type {
   ItemDeLista,
   Lancamento,
   Ligacao,
+  Produto,
   Projeto,
   RegistroDeHoras,
   Saldo,
@@ -35,6 +36,7 @@ function agrupar<T>(itens: readonly T[], chave: (t: T) => UUID | null): Map<UUID
 export interface IndiceEstado {
   dump: DumpBanco;
   projetos: Map<UUID, Projeto>;
+  produtosPorProjeto: Map<UUID, Produto[]>;
   autonomos: UUID[];
   tarefasPorProjeto: Map<UUID, Tarefa[]>;
   registrosPorProjeto: Map<UUID, RegistroDeHoras[]>;
@@ -80,6 +82,7 @@ export function construirIndice(dump: DumpBanco): IndiceEstado {
   return {
     dump,
     projetos: new Map(dump.projetos.map((p) => [p.id, p])),
+    produtosPorProjeto: agrupar(dump.produtos ?? [], (p) => p.projetoId),
     autonomos: dump.projetos.filter((p) => p.autonomia === 'autonomo' && p.arquivadoEm === null).map((p) => p.id),
     tarefasPorProjeto: agrupar(dump.tarefas, (t) => t.projetoId),
     registrosPorProjeto: agrupar(dump.registrosDeHoras, (r) => r.projetoId),

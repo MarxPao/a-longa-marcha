@@ -3,6 +3,7 @@ import {
   EsquemaConfig,
   EsquemaDumpBanco,
   criarDumpVazio,
+  migrarDumpParaVersaoAtual,
   type Base,
   type Config,
   type Data,
@@ -67,6 +68,8 @@ export type TipoModal =
 
 export type TipoCapturaRapida = 'horas' | 'tarefa' | 'lancamento' | 'evento' | null;
 
+export type AbaPainelProjeto = 'visaoGeral' | 'tarefas' | 'clientes' | 'financas' | 'estoque' | 'pd';
+
 export interface EstadoCampanha {
   // Dados fundamentais
   dump: DumpBanco;
@@ -79,6 +82,12 @@ export interface EstadoCampanha {
 
   // Estado de UI
   projetoSelecionadoId: UUID | null;
+  abaAtivaPainel: AbaPainelProjeto;
+  produtoDestacadoId: UUID | null;
+  filtroMapaSetorId: UUID | null;
+  filtroMapaProdutoId: UUID | null;
+  produtosRecemCriadosIds: UUID[];
+  produtosRecemArquivadosIds: UUID[];
   modalAberto: TipoModal;
   tipoCapturaRapida: TipoCapturaRapida;
   vistaAtiva: 'mapa' | 'lista';
@@ -113,6 +122,7 @@ export interface EstadoCampanha {
   obterPreviaTurno: () => PreviaFechamento;
   fecharTurno: () => Promise<ResultadoFechamentoTurno>;
   desfazerUltimoTurno: () => Promise<boolean>;
+  avancarDataSimulada: (dias: number) => void;
 
   // Portabilidade
   exportarJson: () => DumpBanco;
@@ -122,6 +132,11 @@ export interface EstadoCampanha {
 
   // UI
   selecionarProjeto: (id: UUID | null) => void;
+  definirAbaAtivaPainel: (aba: AbaPainelProjeto) => void;
+  selecionarLojaNoMapa: (projetoId: UUID, produtoId: UUID) => void;
+  definirProdutoDestacado: (produtoId: UUID | null) => void;
+  definirFiltroMapaSetor: (setorId: UUID | null) => void;
+  definirFiltroMapaProduto: (produtoId: UUID | null) => void;
   abrirModal: (modal: TipoModal, tipoCaptura?: TipoCapturaRapida) => void;
   fecharModal: () => void;
   alternarVista: (vista: 'mapa' | 'lista') => void;
@@ -190,6 +205,12 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
       : new RepositorioMemoria(),
 
   projetoSelecionadoId: dumpPadrao.projetos[0]?.id ?? null,
+  abaAtivaPainel: 'visaoGeral',
+  produtoDestacadoId: null,
+  filtroMapaSetorId: null,
+  filtroMapaProdutoId: null,
+  produtosRecemCriadosIds: [],
+  produtosRecemArquivadosIds: [],
   modalAberto: null,
   tipoCapturaRapida: null,
   vistaAtiva: 'mapa',
@@ -384,6 +405,10 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
       derivadosGlobais: novosGlobais,
       historicoComandos: historicoAtualizado,
       ultimoProjetoIdUsado: ultimoProjeto,
+      produtosRecemCriadosIds:
+        tabela === 'produtos'
+          ? [...get().produtosRecemCriadosIds, id]
+          : get().produtosRecemCriadosIds,
       notificacao: { tipo: 'sucesso', mensagem: `${comando.descricao} concluído.` },
     });
 
@@ -403,9 +428,37 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
     if (!existente) throw new Error(`Registro ${id} não encontrado na tabela ${tabela}`);
 
     const agora = new Date().toISOString();
+    const alteracoesNormalizadas: Record<string, unknown> = {
+      ...(alteracoes as Record<string, unknown>),
+    };
+
+    if (tabela === 'projetos') {
+      const projExistente = existente as unknown as {
+        x?: number;
+        z?: number;
+        posicao?: { x: number; z: number } | null;
+      };
+      const altProj = alteracoes as unknown as {
+        x?: number;
+        z?: number;
+        posicao?: { x: number; z: number } | null;
+      };
+      if (altProj.posicao && typeof altProj.posicao.x === 'number' && typeof altProj.posicao.z === 'number') {
+        alteracoesNormalizadas.x = altProj.posicao.x;
+        alteracoesNormalizadas.z = altProj.posicao.z;
+        alteracoesNormalizadas.posicao = { x: altProj.posicao.x, z: altProj.posicao.z };
+      } else if (typeof altProj.x === 'number' || typeof altProj.z === 'number') {
+        const novoX = typeof altProj.x === 'number' ? altProj.x : (projExistente.x ?? 0);
+        const novoZ = typeof altProj.z === 'number' ? altProj.z : (projExistente.z ?? 0);
+        alteracoesNormalizadas.x = novoX;
+        alteracoesNormalizadas.z = novoZ;
+        alteracoesNormalizadas.posicao = { x: novoX, z: novoZ };
+      }
+    }
+
     const entidadeMesclada = {
       ...existente,
-      ...alteracoes,
+      ...alteracoesNormalizadas,
       id,
       atualizadoEm: agora,
     };
@@ -484,6 +537,8 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
         throw new Error('Arquivar projeto como Ruínas exige nota de lições aprendidas (Seção 3.4 e Caso 7.2)');
       }
       alteracoes.notas = textoLicoes;
+    } else if (tabela === 'produtos') {
+      alteracoes.ativo = false;
     }
 
     const entidadeArquivada = validarRegistro(tabela, {
@@ -527,6 +582,10 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
       derivadosPorProjeto: novosDerivados,
       derivadosGlobais: novosGlobais,
       historicoComandos: [...get().historicoComandos, comando].slice(-LIMITE_HISTORICO_COMANDOS),
+      produtosRecemArquivadosIds:
+        tabela === 'produtos'
+          ? [...get().produtosRecemArquivadosIds, id]
+          : get().produtosRecemArquivadosIds,
       notificacao: { tipo: 'aviso', mensagem: `${comando.descricao}.` },
     });
 
@@ -731,6 +790,25 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
     return true;
   },
 
+  avancarDataSimulada: (dias) => {
+    const { dump, semanaAtual } = get();
+    const novaSemana = somarDias(semanaAtual, dias);
+    const { indice, derivadosPorProjeto, derivadosGlobais } = inicializarEstadoDerivado(
+      dump,
+      novaSemana
+    );
+    set({
+      semanaAtual: novaSemana,
+      indice,
+      derivadosPorProjeto,
+      derivadosGlobais,
+      notificacao: {
+        tipo: 'aviso',
+        mensagem: `Data simulada ajustada para ${novaSemana}`,
+      },
+    });
+  },
+
   exportarJson: () => {
     const dump = get().dump;
     return {
@@ -740,8 +818,9 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
   },
 
   importarJson: async (dados) => {
-    // Validação atômica estrita (Seção 6.8: se falhar nada é gravado)
-    const dumpValidado = EsquemaDumpBanco.parse(dados);
+    // Validação atômica estrita com migração v1 -> v2 (Seção 5 e Seção 6.8: se falhar nada é gravado)
+    const dadosMigrados = migrarDumpParaVersaoAtual(dados);
+    const dumpValidado = EsquemaDumpBanco.parse(dadosMigrados);
     const { dump: dumpAntes, semanaAtual, repositorio } = get();
 
     const { indice, derivadosPorProjeto, derivadosGlobais } = inicializarEstadoDerivado(
@@ -763,6 +842,8 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
       indice,
       derivadosPorProjeto,
       derivadosGlobais,
+      produtosRecemCriadosIds: [],
+      produtosRecemArquivadosIds: [],
       historicoComandos: [...get().historicoComandos, comando].slice(-LIMITE_HISTORICO_COMANDOS),
       notificacao: { tipo: 'sucesso', mensagem: 'Dados importados com sucesso.' },
     });
@@ -791,6 +872,8 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
       derivadosGlobais,
       semanaAtual,
       historicoComandos: [],
+      produtosRecemCriadosIds: [],
+      produtosRecemArquivadosIds: [],
       projetoSelecionadoId: novoDump.projetos[0]?.id ?? null,
       notificacao: { tipo: 'aviso', mensagem: 'Banco de dados reiniciado.' },
     });
@@ -813,7 +896,33 @@ export const useCampanhaStore = create<EstadoCampanha>((set, get) => ({
     set({
       projetoSelecionadoId: id,
       ultimoProjetoIdUsado: id ?? get().ultimoProjetoIdUsado,
+      produtoDestacadoId: id === null ? null : get().produtoDestacadoId,
     });
+  },
+
+  definirAbaAtivaPainel: (aba) => {
+    set({ abaAtivaPainel: aba });
+  },
+
+  selecionarLojaNoMapa: (projetoId, produtoId) => {
+    set({
+      projetoSelecionadoId: projetoId,
+      ultimoProjetoIdUsado: projetoId,
+      abaAtivaPainel: 'financas',
+      produtoDestacadoId: produtoId,
+    });
+  },
+
+  definirProdutoDestacado: (produtoId) => {
+    set({ produtoDestacadoId: produtoId });
+  },
+
+  definirFiltroMapaSetor: (setorId) => {
+    set({ filtroMapaSetorId: setorId });
+  },
+
+  definirFiltroMapaProduto: (produtoId) => {
+    set({ filtroMapaProdutoId: produtoId });
   },
 
   abrirModal: (modal, tipoCaptura = null) => {
